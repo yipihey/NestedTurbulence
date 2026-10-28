@@ -1,0 +1,12 @@
+.DS_Store
+/.quarto
+/_site
+/_variables.yml
+/api
+/app/css/brand.css
+/app/pkg
+/core/Manifest.toml
+/core/target
+
+/.quarto/
+**/*.quarto_ipynb

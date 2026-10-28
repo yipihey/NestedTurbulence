@@ -1,0 +1,86 @@
+---
+title: "Cost of the hierarchy"
+---
+
+```{=html}
+<script type="module" src="../app/js/widgets.js"></script>
+```
+
+The cost of a nested run is the number of cell updates, $\sum_\ell N_\ell^\text{cells}\,n_\ell^\text{steps}$,
+times the cost of one update. This chapter measures the first factor, which the time stepping
+controls, and the second, which the kernels control, separately.
+
+## Adaptive per-level steps {#sec-adaptive}
+
+A 5-level nest with $16^3$ cells per level is run to $t = 0.05$ twice: with per-level CFL steps
+(@sec-order) and with the usual fixed ratio of two steps per parent step. Two problems are used:
+
+- **Orszag–Tang** (3-D perturbed): the signal speeds are similar everywhere, so the CFL step halves
+  with each level and both schemes should take about $2^{\ell-1}$ steps;
+- **a cold dense core**: a Gaussian overdensity of 100 in pressure equilibrium, so its sound speed is
+  ten times lower, advected at $v_x = 0.5$ through a weak field. The inner levels are mostly cold, so
+  their CFL step is much longer than half their parent's.
+
+```{=html}
+<div class="qd-widget" data-widget="adapt" data-state="pr=cold-core"></div>
+```
+
+On the cold core the adaptive scheme takes 9 / 18 / 18 / 18 / 36 steps on the five levels against
+9 / 18 / 36 / 72 / 144 with fixed ratio 2. That is **2.8× fewer cell updates** (405 504 vs 1 142 784), with
+mass conserved to $2\times10^{-16}$ and $\nabla\cdot\mathbf B$ at rounding (CT) in both cases. Levels 3 and 4
+take one step per parent step. Level 5 takes two, because halving $\Delta x$ inside the core again halves
+its CFL step. The suite pins the saving and the invariants {{< test "adaptive per-level steps" "cold core" >}}.
+
+On Orszag–Tang the two schemes do nearly the same work (adaptive/fixed = 0.93 in CT, 0.99 in GLM).
+In CT the adaptive scheme takes *more* steps on levels 2 and 3 (29 and 58 instead of 26 and 52). There, fixed ratio-2 steps
+exceed the level's CFL step: the run is unstable in principle, and the driver warns. Fixed
+subcycling is only as safe as the assumption that signal speeds are equal on all levels.
+
+## Covered-region skipping {#sec-skip}
+
+```{=html}
+<div class="qd-widget" data-widget="skip"></div>
+```
+
+For a 3-level nest of $32^3$ patches the saving is lost in timing noise. Two sets of runs gave
+−2 % and 0 % for CT, and −3 % and +18 % for GLM. The parent region that can be
+skipped is the child footprint ($16^3$ parent cells) minus the margins of @sec-kernels. That leaves
+$12^3$ cells for the update (5 % of the patch) and $6^3$ for the reconstruction. The saving is bounded
+by 1/8 of a parent's work for a centred half-size child. It becomes worth having only for large
+patches, or on GPUs where whole thread blocks retire early. We keep it because it costs nothing in
+accuracy {{< test "covered-region skipping" "identical result" >}}.
+
+## Throughput of the portable kernels {#sec-throughput}
+
+```{=html}
+<div class="qd-widget" data-widget="tput"></div>
+```
+
+On two CPU threads the portable kernels update 5.5–7.3 million cells per second in `Float32` and
+2.4–4.2 million in `Float64`. The CT/GLM ratio is not consistent across these short runs (with HLL,
+CT was 1.5× and 1.1× slower in two `Float32` runs, and 1.1× faster in `Float64`), so no ranking is claimed. For comparison, GLMMHDTurb's
+CUDA-specific kernels reach 1100–1900 Mcell/s (GLM) and 1200–1600 Mcell/s (CT) on an RTX A6000.
+Those are GPU figures for hand-tiled kernels, so they say nothing about how these portable kernels
+would run on that card.
+
+## What a GPU run will need {#sec-roadmap}
+
+These steps are not done, and none of the following has been measured:
+
+1. **Run the portable kernels on a GPU** (`backend = CUDABackend()`) and measure. The kernels use
+   only `@kernel`, `@index`, `@Const` and device arrays, with no atomics and no scalar indexing on
+   the host path except the CFL `maximum`. `init!` builds the hierarchy on the host and copies it over.
+2. **Bring the tiled GLMMHDTurb kernel into a patch.** It needs three changes: ghost-aware indexing
+   instead of periodic wrap; flux export on the patch boundary (for the child accumulators) and on the
+   parent's coarse–fine faces (for refluxing); and the covered-region early exit. Only boundary faces
+   need exporting, so the 72 B/cell memory footprint of the tiled kernel could be kept for the
+   interior. For CT, the staged Float16 design of `spike_ct3.cu` already stores face fluxes in shared
+   memory, so the EMFs are available there to export.
+   AthenaK [@stone2026] shows the other route: portable (Kokkos) block-structured AMR-MHD with CT
+   on GPUs, using fixed-size mesh blocks rather than one dense patch per level.
+3. **Fuse the inter-level kernels.** They touch only surfaces and footprints, but each is a separate
+   launch. On a 16-level hierarchy of small patches, launch latency will dominate unless the
+   per-level kernels are batched.
+
+The cost model above stays the same on a GPU: adaptive stepping changes how many updates are
+needed, and the GPU changes what each update costs.

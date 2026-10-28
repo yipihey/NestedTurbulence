@@ -1,0 +1,196 @@
+---
+title: "Methods"
+---
+
+## Equations {#sec-equations}
+
+The solver integrates ideal MHD in conservative form,
+
+$$
+\partial_t \mathbf U + \nabla\cdot\mathbf F(\mathbf U) = 0,\qquad
+\mathbf U = (\rho,\ \rho\mathbf v,\ E,\ \mathbf B),
+$$ {#eq-mhd}
+
+with total energy $E = p/(\gamma-1) + \tfrac12\rho v^2 + \tfrac12 B^2$ (units with $\mu_0 = 1$) and
+fluxes
+
+$$
+\mathbf F = \begin{pmatrix} \rho\mathbf v \\ \rho\mathbf v\mathbf v + p_T\,\mathsf I - \mathbf B\mathbf B \\
+(E+p_T)\,\mathbf v - \mathbf B(\mathbf v\cdot\mathbf B) \\ \mathbf v\mathbf B - \mathbf B\mathbf v \end{pmatrix},
+\qquad p_T = p + \tfrac12 B^2 .
+$$ {#eq-flux}
+
+The conversion between conserved and primitive variables{{< src cons2prim >}} floors density
+and pressure as GLMMHDTurb does. The induction equation $\partial_t\mathbf B = -\nabla\times\mathbf E$,
+$\mathbf E = -\mathbf v\times\mathbf B$, must keep $\nabla\cdot\mathbf B = 0$. A hierarchy uses one
+of two treatments.
+
+### Dedner GLM cleaning {#sec-glm}
+
+`mode = :glm` adds a scalar $\psi$ that carries divergence errors away at speed $c_h$ and damps them
+[@dedner2002]:
+
+$$
+\partial_t \mathbf B + \nabla\cdot(\mathbf v\mathbf B - \mathbf B\mathbf v) + \nabla\psi = 0,\qquad
+\partial_t \psi + c_h^2\,\nabla\cdot\mathbf B = -\frac{c_h^2}{c_p^2}\,\psi .
+$$ {#eq-glm}
+
+At every face the normal field and $\psi$ are first solved as a 2×2 system{{< src glm_pair >}},
+$B_n^* = \tfrac12(B_{nL}+B_{nR}) - \tfrac{1}{2c_h}(\psi_R-\psi_L)$ and
+$\psi^* = \tfrac12(\psi_L+\psi_R) - \tfrac{c_h}{2}(B_{nR}-B_{nL})$. They then enter the MHD Riemann
+solver as $F[B_n] = \psi^*$, $F[\psi] = c_h^2 B_n^*$. The source term is applied in operator-split form,
+$\psi \leftarrow \psi\,\exp(-c_h\Delta t/(c_p L))$, fused into the cell update. As in the
+`sweep-fixes` branch, $c_h = C\,\Delta x/(3\,\Delta t_\mathrm{CFL})\cdot s$ is taken from the
+level's CFL step, not from a step shortened to land on a target time. Otherwise $c_h$, and the
+$\psi$ flux $c_h^2 B_n^*$, grow without bound on short steps.
+
+### Constrained transport {#sec-ct}
+
+`mode = :ct` stores $\mathbf B$ on cell faces [@evans1988] and advances each face by the
+circulation of the electric field around it{{< src update_faces_kernel! >}}:
+
+$$
+B_x^{n+1}{}_{i-\frac12,j,k} = B_x^{n}{}_{i-\frac12,j,k} - \frac{\Delta t}{\Delta x}
+\Big[(E_z{}_{i-\frac12,j+\frac12} - E_z{}_{i-\frac12,j-\frac12}) - (E_y{}_{i-\frac12,k+\frac12} - E_y{}_{i-\frac12,k-\frac12})\Big]
+$$ {#eq-ct}
+
+and cyclically for $B_y, B_z$. The discrete divergence of every cell is then unchanged to rounding,
+whatever the edge EMFs are [@toth2000]. The edge EMFs come from the upwind "CT-contact" construction of
+@gardiner2005, which is the fix of the `sweep-fixes` branch{{< src gs05 >}}. The plain average of the
+four face EMFs around an edge is corrected by upwinded differences between face EMFs and a
+cell-centred reference EMF. The reference uses the predictor's half-step velocity with the
+start-of-step field{{< src recon_kernel! >}}:
+
+$$
+E_{z,i-\frac12,j-\frac12} = \tfrac14\left(E^{x}_{i-\frac12,j} + E^{x}_{i-\frac12,j-1} + E^{y}_{i,j-\frac12} + E^{y}_{i-1,j-\frac12}\right)
++ \tfrac14\Big[(A_3 - A_1) + (B_3 - B_1)\Big],
+$$ {#eq-gs05}
+
+where $A_{1,3}$ ($B_{1,3}$) are $\partial E_z/\partial y$ ($\partial E_z/\partial x$) differences taken from
+the side the mass flux through the adjacent face comes from. `sweep-fixes` reports that with the
+plain average the field-loop error *grew* with resolution once the slopes were corrected, and that
+GS05 restores GLM-level accuracy. Its other CT fixes are also adopted here: the full limited slope
+and the three-direction Hancock predictor (@sec-scheme).
+
+## The single-level scheme {#sec-scheme}
+
+Both modes share one finite-volume step, ported from GLMMHDTurb:
+
+1. **Reconstruction**: MonCen-limited slopes of the primitive variables{{< src moncen >}}
+   $\delta q = \operatorname{minmod}\!\big(2\Delta_-q,\ 2\Delta_+q,\ \tfrac12(\Delta_-q+\Delta_+q)\big)$, stored as
+   half-slopes{{< src prim_slope >}}. In the CT mode the cell-centred field is the mean of the two faces.
+2. **MUSCL-Hancock predictor** in all three directions{{< src hancock >}}:
+   $\mathbf U^{n+\frac12} = \mathbf U^n - \tfrac{\Delta t}{2\Delta x}\sum_d\big[\mathbf F_d(q+\delta_d q) - \mathbf F_d(q-\delta_d q)\big]$.
+3. **Riemann solver** at every face, solved once{{< src riemann_dir >}}: HLL with exact fast
+   magnetosonic signal speeds{{< src hll_x >}} (default, branchless), HLLD [@miyoshi2005]{{< src hlld_x >}}
+   with the `sweep-fixes` degenerate-state guard $|D_K| < 10^{-4}\,p_T^*$, or LLF. In CT the normal field
+   of a face is the single face value.
+4. **Update**: single-stage unsplit, $\mathbf U^{n+1} = \mathbf U^n - \tfrac{\Delta t}{\Delta x}\sum_d (\mathbf F_{d,+}-\mathbf F_{d,-})$,
+   with a positivity floor{{< src update_cells_kernel! >}}. In CT, @eq-ct follows.
+
+The time step is $\Delta t = C\,\Delta x / \max_\text{cells}\sum_d(|v_d| + c_{f,d})$, the unsplit
+criterion of GLMMHDTurb{{< src signal_speed >}}.
+
+## Nested grids {#sec-nesting}
+
+A hierarchy is a periodic root patch and a chain of refined patches, each a dense box at twice its
+parent's resolution{{< src Hierarchy >}}. A child with first global cell $\ell_f$ (odd) and $n_f$
+(even) cells covers the parent cells $a = (\ell_f+1)/2$ to $b = a + n_f/2 - 1$, and must sit at least
+two parent cells inside its parent.
+
+### Order of operations and adaptive time steps {#sec-order}
+
+Levels are advanced recursively in the Berger–Oliger order [@berger1984]{{< src evolve_level! >}}.
+For every step of level $\ell$:
+
+1. fill ghost zones (periodic on the root, time-interpolated prolongation below);
+2. take the level's own CFL step $\Delta t^{\rm CFL}_\ell${{< src cfl_dt >}}, evened out so the level
+   lands exactly on its parent's time: $n = \lceil (t_\mathrm{stop}-t)/\Delta t^{\rm CFL}_\ell\rceil$,
+   $\Delta t = (t_\mathrm{stop}-t)/n$;
+3. if a child exists, copy the region it reads into a snapshot{{< src snapshot! >}} and record
+   $(t_{p0}, t_{p1}) = (t, t+\Delta t)$;
+4. advance the patch{{< src step_patch! >}};
+5. evolve the child over $[t, t+\Delta t]$ (recursively), then reflux, correct EMFs and restrict
+   (below){{< src sync_from_child! >}}.
+
+This is the time stepping of Enzo [@bryan2014] rather than fixed ratio-2 subcycling. A level whose
+CFL step exceeds its parent's takes a single step per parent step. A level with faster signals takes
+as many steps as it needs. No level pays for another level's signal speed (@sec-adaptive).
+
+### Second-order time interpolation at the coarse–fine boundary {#sec-timeinterp}
+
+Because the parent is advanced first, both ends of its step are known when the child runs. A child
+step starting at time $t$ fills its ghosts from{{< src fill_ghosts! >}}
+
+$$
+q_\text{coarse}(\theta) = (1-\theta)\,q(t_{p0}) + \theta\,q(t_{p1}),\qquad \theta = \frac{t - t_{p0}}{t_{p1}-t_{p0}},
+$$ {#eq-theta}
+
+that is, ghosts are evaluated at the *start* of the child step. The MUSCL-Hancock predictor then
+moves ghosts and interior together to the half step, which is what makes the boundary flux
+time-centred. Setting $\theta \equiv 0$ gives the stale-ghost boundary of the Rust cascade driver,
+which is first order in time; it is kept as an option (`time_interp=false`) for comparison.
+
+The Rust driver advanced the coarse level *after* its children, because the coarse face field had to
+be known before the fine CT step could be restricted. Here the restriction runs through the EMF
+correction below, so the coarse level can go first and the interpolation in @eq-theta becomes
+possible.
+
+**Spatial prolongation.** Cells: the θ-blended coarse cell plus MonCen-limited linear slopes, evaluated
+at $\pm\tfrac14$ of a coarse cell{{< src prolong_cells_kernel! >}}. In CT the non-magnetic energy
+$E - \tfrac12 B_c^2$ is prolonged and $\tfrac12 B_f^2$ is added from the fine faces, so ghost pressures
+are not polluted by face/cell field mismatch. Faces (CT): along the normal direction, the coarse face,
+or for a fine mid-plane face the mean of the two coarse faces; transversely, MonCen-limited linear
+in the coarse face field{{< src prolong_faces_kernel! >}}. Ghost faces only feed the reconstruction:
+every owned face is advanced by @eq-ct, so the evolved cells stay divergence-free whatever the ghosts
+contain. A piecewise-constant transverse prolongation, which is exactly solenoidal in the ghosts, was
+measured first-order in space. It masked the gain from @eq-theta, which is why it was replaced
+(@sec-ghost). A prolongation that is both second order and divergence-free in the ghosts exists
+[@toth2002]; it is not needed for the constraint here, because only owned faces are evolved.
+
+### Conservation across levels {#sec-reflux}
+
+**Fluxes** [@berger1989]. After each step the child accumulates
+$\sum \Delta t_f\,\langle\mathbf F_f\rangle$ on the coarse faces of its boundary (the mean of the four
+fine sub-faces){{< src accum_flux_kernel! >}}. When the child has caught up, the parent replaces its own
+$\Delta t_c\,\mathbf F_c$ on those faces, correcting the uncovered neighbour cells{{< src reflux_kernel! >}}:
+
+$$
+\mathbf U_\text{out} \mathrel{+}= \pm\frac{1}{\Delta x_c}\Big(\Delta t_c\,\mathbf F_c - \sum_\text{substeps}\Delta t_f\,\langle\mathbf F_f\rangle\Big).
+$$ {#eq-reflux}
+
+Accumulators belong to the child and are zeroed at the start of each parent step. The child's own
+reflux with its child uses its per-step flux array, not the accumulator. The Rust driver's fourth bug,
+an inner reflux reading a buffer that already held earlier substeps, therefore cannot occur in this
+design.
+
+**Magnetic flux (CT).** The child accumulates $\sum \Delta t_f\,\langle E_f\rangle$ on the coarse edges of
+its boundary surface (the mean of the two collinear fine edges){{< src accum_emf_kernel! >}}. The parent
+corrects every face *outside* the footprint that touches such an edge with the curl of
+$\delta = \sum\Delta t_f\langle E_f\rangle - \Delta t_c E_c${{< src emf_correct_kernel! >}} [@balsara2001].
+Faces on and inside the footprint are restricted as area means of the four fine faces{{< src restrict_faces_kernel! >}}.
+By Stokes' theorem the restricted boundary face equals the EMF-corrected one: the interior fine edges
+cancel in pairs and the perimeter fine edges are exactly the accumulated ones. Every coarse cell
+therefore keeps $\nabla\cdot\mathbf B$ at rounding. Covered cells are volume means of their eight
+children{{< src restrict_cells_kernel! >}}.
+
+**Initial data.** With a vector potential $\mathbf A$, face fields are the discrete curl of $\mathbf A$
+on cell edges. The parent faces next to each footprint are then made consistent with the restricted
+boundary faces by the curl of $\langle A_\text{fine}\rangle - A_\text{coarse}$ on the footprint's
+surface edges{{< src init! >}}. The hierarchy starts with $\nabla\cdot\mathbf B = 0$ to rounding on every level.
+
+### Keeping the nesting cheap {#sec-cheap}
+
+Three choices keep the cost of the hierarchy close to the cost of its finest patches:
+
+- **adaptive per-level steps** (@sec-order): coarse levels take as few steps as their own CFL allows.
+  This is the choice that matters (@sec-adaptive);
+- **covered-region skipping**: a parent does no work deep inside its child's footprint{{< src deep >}}.
+  Cells more than two coarse cells inside are not updated (they are overwritten by restriction). Fluxes,
+  EMFs and reconstructions are computed only to the depth the remaining updates need. The outer two
+  layers of covered cells keep evolving, so that the child's time-interpolated ghosts and their slope
+  stencils see a coarse field advanced to $t_{p1}$. The saving is bounded by the covered fraction of the
+  parent, at most 1/8 for a centred half-size child, minus the margins. For 32³ patches it is too small
+  to measure (@sec-skip);
+- **snapshots of the ghost region only**: the parent copies the cells $[a-2, b+2]$ that prolongation
+  reads, about an eighth of the parent for a centred half-size child, rather than the whole patch.

@@ -1,0 +1,18 @@
+name = "NestedMHD"
+uuid = "5b0f3c2e-8d1a-4f7e-9b63-2c4a7e1d9f05"
+version = "0.1.0"
+authors = ["Tom Abel"]
+
+[deps]
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
+[compat]
+KernelAbstractions = "0.9, 0.10"
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

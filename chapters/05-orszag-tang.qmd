@@ -1,0 +1,45 @@
+---
+title: "A nested Orszag–Tang run"
+---
+
+```{=html}
+<script type="module" src="../app/js/widgets.js"></script>
+```
+
+## Set-up {#sec-ot-setup}
+
+The three-dimensionally perturbed Orszag–Tang vortex of @sec-conservation runs on a 3-level nest:
+a periodic $32^3$ root and two $32^3$ children, each covering the central half of its parent
+(effective resolution $128^3$ in the central $1/4^3$ of the box). Both $\nabla\cdot\mathbf B$
+treatments, HLL, `Float64`, Courant 0.4, to $t = 0.5$, with snapshots every $\Delta t = 0.05$. The
+field is set from the vector potential
+$\mathbf A = \big(0,\ 0.2\,B_0 x,\ B_0[\cos 4\pi x/4\pi + \cos 2\pi y/2\pi]\big)$, $B_0 = 1/\sqrt{4\pi}$.
+
+## The run {#sec-ot-run}
+
+```{=html}
+<div class="qd-widget" data-widget="ot"></div>
+```
+
+The left panel composites the $z$-midplane of all three levels, with the finest data drawn on top
+(outlines mark the patches). The shocks and current sheets cross both refinement boundaries. At
+this resolution (32 cells per patch) no artefacts are visible along the patch edges. That is a
+qualitative statement; the quantitative interface tests are in @sec-ghost. In the log-scale panels,
+values that are exactly zero are drawn at $10^{-17}$.
+
+- **Conservation.** Total mass and energy stay at $|\Delta m/m| \le 3.8\times10^{-16}$ and
+  $|\Delta E/E| \le 1.6\times10^{-16}$ throughout, in both modes.
+- **CT.** $\max|\nabla\cdot\mathbf B|\,\Delta x/\max|\mathbf B|$ stays between $1.5\times10^{-15}$ and
+  $6\times10^{-15}$ on every level for the whole run.
+- **GLM.** The same measure fluctuates between $5\times10^{-2}$ and $6\times10^{-1}$. It is bounded, but
+  not zero, and larger than on a uniform grid ($2$–$6\times10^{-2}$ for the 2-D problem at $t=0.2$ in @sec-otref).
+- **Steps.** The levels take 255 / 522 / 1062 steps (CT) and 298 / 795 / 1521 (GLM; the
+  two runs evolve differently, so their CFL steps differ): about two per parent step on the root,
+  up to 2.7 where the shocks steepen. Each count is the one that level's CFL condition
+  requires, not a fixed ratio.
+
+::: {.callout-tip title="Try it"}
+Step through time, switch the field (density, magnetic pressure, in-plane speed) and compare CT with
+GLM in the $\nabla\cdot\mathbf B$ panel.
+{{< lab "ex=ot&f=pmag&t=6" "Magnetic pressure at t = 0.3 in the lab" >}}
+:::

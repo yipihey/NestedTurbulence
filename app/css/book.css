@@ -1,0 +1,5 @@
+/* book.css - tables of the result explorers inside the book */
+.qd-table { font-size: 0.8125rem; border-collapse: collapse; margin: 0.5rem 0; width: auto; }
+.qd-table td, .qd-table th { padding: 0.15rem 0.6rem; border-bottom: 1px solid var(--qd-border); text-align: right; }
+.qd-table td:first-child, .qd-table th:first-child { text-align: left; }
+.qd-widget .qd-panel canvas { image-rendering: pixelated; }

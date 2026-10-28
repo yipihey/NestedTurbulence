@@ -1,0 +1,109 @@
+---
+title: "Validation"
+---
+
+```{=html}
+<script type="module" src="../app/js/widgets.js"></script>
+```
+
+All numbers on this page come from the test suite (✓ badges) or from
+`core/bench/run_experiments.jl` (the datasets behind the widgets). Runs are in `Float64` unless
+stated otherwise, so that conservation can be checked at rounding.
+
+## Conservation and $\nabla\cdot\mathbf B$ {#sec-conservation}
+
+The test problem is the Orszag–Tang vortex [@orszag1979] with a three-dimensional perturbation
+($\rho \propto 1 + 0.1\sin 2\pi z$, $v_z = 0.3\sin 2\pi x$, uniform $B_z$), so every face of a nested box
+sees flow and field. It is run on one level and on 2- and 3-level nests with $16^3$ cells per level,
+in both modes, with and without time interpolation, to $t = 0.05$:
+
+- on a single level, total mass and energy are conserved to $10^{-13}$ relative and momentum to $10^{-14}$
+  {{< test "single level" "single level" >}};
+- on every nested configuration, with refluxing, the same holds for the whole box
+  {{< test "nested hierarchy" "2- and 3-level nests" >}}. In the 3-level run of @sec-ot-run, measured to
+  $t = 0.5$, $|\Delta m/m| \le 3.8\times10^{-16}$ and $|\Delta E/E| \le 1.6\times10^{-16}$;
+- in CT, the initial hierarchy (vector-potential set-up) has
+  $\max|\nabla\cdot\mathbf B|\,\Delta x/\max|\mathbf B| < 10^{-14}$ on every level, and after evolution the
+  value stays below $10^{-13}$ on every level, including the parent cells next to each footprint
+  {{< test "nested hierarchy" "∇·B at rounding" >}}. Measured: $1.3$–$2.2\times10^{-15}$;
+- in `Float32` the same nest conserves mass to $10^{-5}$ and keeps $\nabla\cdot\mathbf B < 10^{-5}$
+  {{< test "Float32 nested CT" "Float32" >}}.
+
+GLM, by construction, cleans the divergence rather than removing it. On the same nests its
+dimensionless $\max|\nabla\cdot\mathbf B|$ (central differences) is $5\times10^{-2}$–$6\times10^{-1}$
+over the 3-level run of @sec-ot-run. Prolongation of a cell-centred field across a coarse–fine
+boundary generates divergence, which the cleaning wave then carries away. Where an exact constraint
+matters, use CT.
+
+## Ghost zones: second order in time {#sec-ghost}
+
+The decisive test of @eq-theta is the ghost data itself. A circularly polarised Alfvén wave ($\rho=1$,
+$p=0.1$, $B_x=1$, $\delta B_\perp = 0.1$) is an exact nonlinear solution travelling at $v_A=1$. In a
+quasi-one-dimensional box $(N, 8, 8)$ with a child covering the central half, we record the largest
+deviation of the child's ghost zones from the exact wave at every child ghost fill, for $t\le 0.25$:
+
+```{=html}
+<div class="qd-widget" data-widget="ghost" data-state="c=0.8"></div>
+```
+
+With θ-interpolation the ghost error falls as $N^{-2}$: local orders 1.94–1.97 between $N=32$ and 64,
+and 1.98–2.00 between 64 and 128, in both modes and at both Courant numbers. With stale ghosts the
+order drops towards one, to 0.86–0.95 between 64 and 128: the second fine substep sees coarse data
+that is one fine step old. At $N=128$ the stale ghosts are 4–5× worse at Courant 0.4 and 10–12× worse
+at Courant 0.8. The test suite pins both orders {{< test "second-order time-interpolated ghosts" "order > 1.8 vs < 1.0" >}}.
+
+::: {.callout-note title="How this test found a defect"}
+A first version prolonged CT ghost faces piecewise-constant in the transverse directions. That is
+exactly solenoidal, but first order in space. With it, the CT ghost error was first order *with and
+without* time interpolation, and the gain from @eq-theta was invisible. The transverse prolongation
+is now limited-linear (@sec-timeinterp). Owned faces are unaffected, so $\nabla\cdot\mathbf B$ stays at rounding.
+:::
+
+::: {.callout-tip title="Try it"}
+Switch between CT and GLM and between Courant 0.4 and 0.8; the table gives the local orders.
+{{< lab "ex=ghost" "Open in the lab" >}}
+:::
+
+## Convergence of the whole solution {#sec-convergence}
+
+The same wave is run for one full period, $t=1$, on the nest and on a uniform root. The $L_1$ error
+of $B_y$ is measured on the root (whose covered cells hold the restricted child) and on the child:
+
+```{=html}
+<div class="qd-widget" data-widget="conv" data-state="c=0.8"></div>
+```
+
+The global error is dominated by the bulk scheme's own truncation error, and half of each period is
+spent on the coarse root, so the two ghost treatments look alike up to $N=64$. At $N = 128$ and
+Courant 0.8 they separate. With θ-interpolation the child error keeps falling at second order
+($6.95\times10^{-5}$ GLM, $7.2\times10^{-5}$ CT; local orders 2.11 and 1.89), below the uniform root's
+$7.7\times10^{-5}$ and $1.16\times10^{-4}$. With stale ghosts it stalls at twice that
+($1.39\times10^{-4}$, $1.46\times10^{-4}$; orders 1.13 and 1.23): the first-order boundary error of
+@sec-ghost has overtaken the bulk error. At Courant 0.4, with smaller time steps, the crossover lies
+beyond $N = 128$. The table also gives mass conservation and $\nabla\cdot\mathbf B$ for every run.
+
+::: {.callout-note title="A stability limit found by this test"}
+An earlier version used a GLM cleaning speed scale of 1.0 instead of GLMMHDTurb's 0.25. At Courant
+0.8 that puts the $\psi$ wave at its own stability limit, $3c_h\Delta t/\Delta x = 0.8$. A uniform grid
+tolerated it, but on the nest $\psi$ grew at the coarse–fine boundary: at $N=128$, $\max|\psi|$ was
+$4\times10^{-3}$ instead of $7\times10^{-6}$, and the error rose 10×. The default is now 0.25 again, and
+scales up to 0.5 were measured to be stable.
+:::
+
+::: {.callout-tip title="Try it"}
+{{< lab "ex=conv" "Open the convergence data in the lab" >}}
+:::
+
+## Fidelity to GLMMHDTurb {#sec-otref}
+
+The port is checked against GLMMHDTurb's published Orszag–Tang result: $v_\mathrm{rms} = \big(\sum\rho v^2/\sum\rho\big)^{1/2}$
+at $t = 0.2$, with GLMMHDTurb's defaults ($\gamma = 5/3$, Courant 0.7, $c_h$ scale 0.25, HLLD), on a
+quasi-two-dimensional $N\times N\times 4$ box:
+
+```{=html}
+<div class="qd-widget" data-widget="otref"></div>
+```
+
+GLM with HLLD gives $0.7887$ at $N=64$ and $0.7906$ at $N=128$, the values in the GLMMHDTurb README
+for its $64^3$ and $128^3$ runs to all four digits. CT with GS05 EMFs lands within $3\times10^{-4}$ of
+them while keeping $\nabla\cdot\mathbf B$ at $2$–$3\times10^{-15}$.

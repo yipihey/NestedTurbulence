@@ -1,0 +1,42 @@
+---
+title: "NestedTurbulence"
+subtitle: "Adaptively subcycled nested-grid MHD with constrained transport or GLM cleaning"
+toc: false
+---
+
+This report describes **NestedMHD**, a nested-grid ideal-MHD solver written in Julia on
+[KernelAbstractions](https://github.com/JuliaGPU/KernelAbstractions.jl), so one source runs on
+CPUs and on CUDA, Metal and ROCm GPUs. It joins two lines of earlier work:
+
+- the **GLMMHDTurb** solver ([yipihey/GLMMHDTurb](https://github.com/yipihey/GLMMHDTurb)): PLM
+  with the MonCen limiter, a three-dimensional MUSCL-Hancock predictor, HLL/HLLD Riemann
+  solvers and Dedner GLM cleaning, tuned for GPU throughput;
+- its **constrained-transport fix** ([Solaceonx/GLMMHDTurb, branch `sweep-fixes`](https://github.com/Solaceonx/GLMMHDTurb/tree/sweep-fixes)):
+  face-staggered magnetic field with Gardiner–Stone (2005) upwinded edge EMFs, which keeps
+  $\nabla\cdot\mathbf B$ at rounding;
+- the **subcycled cascade driver** of the Rust `cascade_gravity` code, whose design (Berger–Colella
+  refluxing, Balsara-type EMF restriction across levels) is carried over and extended.
+
+Each hierarchy uses one of two $\nabla\cdot\mathbf B$ treatments, constrained transport or GLM.
+It is nested in static ratio-2 patches and advanced with **adaptive per-level time steps**:
+every level takes its own CFL step, so coarse levels take far fewer steps than their children. The
+coarse–fine boundary is filled with **second-order time-interpolated ghost zones**.
+
+## Results at a glance
+
+| Claim | Evidence |
+|---|---|
+| Mass, momentum and energy are conserved to rounding across 2- and 3-level nests | @sec-conservation |
+| CT keeps $\lvert\nabla\cdot\mathbf B\rvert\,\Delta x/\max\lvert\mathbf B\rvert \sim 10^{-15}$ on every level, from $t=0$ on | @sec-conservation, @sec-ot-run |
+| Time-interpolated ghost zones converge at 2nd order (1.98–2.00); stale ghosts at 1st (0.86–0.95); at $N=128$ stale ghosts double the child's error | @sec-ghost |
+| The port reproduces GLMMHDTurb's Orszag–Tang $v_\mathrm{rms}$ to four digits (0.7887 / 0.7906) | @sec-otref |
+| Per-level adaptive steps do 2.8× fewer cell updates than fixed ratio-2 subcycling on a cold dense core | @sec-adaptive |
+
+Everything here was run on a CPU (two threads). The kernels are backend-generic KernelAbstractions
+code, but **no GPU backend has been compiled or run for this report**. @sec-roadmap says what that
+means for performance.
+
+<div class="qd-cta">
+<a class="btn btn-primary btn-lg" href="chapters/01-methods.qmd">Start reading</a>
+<a class="btn btn-outline-secondary btn-lg" href="app/index.html">Open the laboratory</a>
+</div>

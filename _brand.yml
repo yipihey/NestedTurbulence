@@ -1,0 +1,21 @@
+# Brand of the book and the laboratory (Quarto brand.yml). scripts/brand_to_css.py turns the colours into
+# CSS custom properties for the standalone app (app/css/brand.css), so book and lab share one palette.
+meta:
+  name: NestedTurbulence
+  link:
+    home: https://yipihey.github.io/NestedTurbulence/
+    github: https://github.com/yipihey/NestedTurbulence
+color:
+  palette:
+    blue: "#0072b2"
+    sky: "#56b4e9"
+    orange: "#d55e00"
+    green: "#009e73"
+    ink: "#1f2328"
+    paper: "#ffffff"
+  primary: blue
+  secondary: sky
+  success: green
+  warning: orange
+  foreground: ink
+  background: paper

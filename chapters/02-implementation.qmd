@@ -1,0 +1,107 @@
+---
+title: "Implementation"
+---
+
+## Layout of the code {#sec-layout}
+
+The numerical core is the Julia package `NestedMHD` in [`core/`](https://github.com/yipihey/NestedTurbulence/tree/main/core):
+
+| File | Contents |
+|---|---|
+| `src/physics.jl` | pointwise physics: conversions, fluxes, MonCen, Hancock, HLL/HLLD/LLF, GLM pair, GS05 EMF |
+| `src/kernels.jl` | per-patch kernels: ghost filling on the root, reconstruction, fluxes, EMFs, cell and face updates, CFL |
+| `src/interlevel.jl` | parent–child kernels: snapshot, prolongation, restriction, flux/EMF accumulation, reflux, EMF correction |
+| `src/hierarchy.jl` | patch and hierarchy types, the recursive adaptive driver |
+| `src/setup.jl` | initial conditions (vector potential), totals, $\nabla\cdot\mathbf B$ diagnostics |
+| `test/runtests.jl` | the validation suite cited by the ✓ badges |
+| `bench/run_experiments.jl` | every dataset in this report and the laboratory |
+
+```julia
+using NestedMHD
+H = nested_central(32, 3; n=32, mode=:ct, riemann=:hll, T=Float32)   # 3 levels, 32³ each
+init!(H, (x,y,z) -> (ρ, vx, vy, vz, p, Bx, By, Bz); vecpot = (x,y,z) -> (Ax, Ay, Az))
+evolve!(H, 0.5)
+level_summary(H); totals(H); max_divb(H)
+```
+
+Pass `backend = CUDABackend()` (or `MetalBackend()`, `ROCBackend()`) to `Hierarchy`/`nested_central`
+to place every array on that device. The kernels are written once with `@kernel`.
+
+## Data layout {#sec-data}
+
+Every patch is a dense box with $g = 2$ ghost cells per side:
+
+- `U[i,j,k,v]`: GLM stores the 9 conserved variables. CT stores 5 conserved variables plus the
+  cell-centred field (derived from the faces after every face update).
+- `bx[i,j,k]`: $B_x$ on the *lower* $x$-face of cell $(i,j,k)$; `by`, `bz` likewise (CT only).
+- `F[i,j,k,c,d]`: flux component $c$ through the lower $d$-face. Each face is solved once and the
+  array is kept until the parent has refluxed.
+- `ex[i,j,k]` on the edge $(i, j-\tfrac12, k-\tfrac12)$, and cyclically (CT only).
+- `rec[i,j,k,:]`: the Hancock half-step state, the three half-slopes, and (CT) the GS05 reference EMF.
+
+Two ghost layers are enough for the CT edge EMFs on the patch-boundary edges, provided each kernel
+runs over exactly the index range the next one needs: reconstruction on $[g, g+n+1]$, normal faces on
+$[g+1, g+n+1]$ with transverse range $[g, g+n+1]$, edges on $[g+1, g+n+1]$. The comments in
+`kernels.jl` give the derivation. A periodic root owns faces $g+1..g+n$ along each direction (face
+$g+n+1$ is a copy of face $g+1$). A child owns $g+1..g+n+1$: its boundary faces are evolved by its own
+EMFs and reconciled with the parent by the EMF correction (@sec-reflux).
+
+## Kernels and their order {#sec-kernels}
+
+One step of one patch launches, in order:
+
+| Kernel | Range | Notes |
+|---|---|---|
+| `periodic_cells_kernel!` / `prolong_faces_kernel!`, `prolong_cells_kernel!` | ghosts | root / child |
+| `bcc_kernel!` | whole patch | CT: cell field from faces |
+| `sig_kernel!` + `maximum` | interior | CFL reduction on the device |
+| `copybox*_kernel!` | $[a-2, b+2]$ | snapshot, parents only |
+| `recon_kernel!` | $[g, g+n+1]^3$ | slopes + Hancock (+ GS05 reference EMF) |
+| `flux_kernel!` | $[g, g+n+1]^3$ | three lower faces per cell, Riemann solver selected at compile time |
+| `emf_kernel!` | $[g+1, g+n+1]^3$ | CT only |
+| `update_cells_kernel!`, `update_faces_kernel!` | interior / owned faces | in place (all fluxes computed first) |
+| `accum_flux_kernel!`, `accum_emf_kernel!` | boundary surface | children only |
+
+After a child has caught up, the parent runs `reflux_kernel!`, `emf_correct_kernel!` (CT),
+`restrict_faces_kernel!` (CT), `restrict_cells_kernel!` and `bcc_kernel!`. Gathers are used instead of
+scatters (every reflux or EMF-correction thread owns one output cell or face), so no kernel needs
+atomics.
+
+**Covered-region margins.** With $\mathrm{MU} = 2$, a parent skips: cell and face updates deeper than
+MU inside the child's footprint, EMFs deeper than MU+1, fluxes deeper than MU+2, and reconstruction
+deeper than MU+3. Shifting a cell by one in one direction changes its depth by at most one, so each
+margin covers the stencil of the stage that reads it{{< src deep >}}. A switch turns skipping off
+(`skip_covered=false`) and the test suite checks that skipping does not change the answer
+{{< test "covered-region skipping" "same answer" >}}.
+
+## What was kept from GLMMHDTurb, and what was not {#sec-kept}
+
+**Kept**, because it is portable:
+
+- the physics, line for line, made generic over `Float32`/`Float64` (every literal is `T(…)`, so
+  `ifelse` never mixes types and nothing promotes in a `Float32` kernel);
+- `@fastmath` + branchless `ifelse` in MonCen. This was GLMMHDTurb's decisive optimisation
+  (398 → 993 Mcell/s): without it Julia's `min`/`max` keep their NaN semantics;
+- `NTuple` states that live in registers, and the Riemann solver selected at compile time through `Val`;
+- HLL as the default solver (branchless, two waves);
+- each reconstruction computed once and each face solved once;
+- $c_h$ from the CFL step and the HLLD guard of `sweep-fixes`.
+
+**Changed**: GLMMHDTurb's tiled kernels write a second state buffer (`unew = uold + flux`). Here the
+fluxes are kept in their own array for refluxing anyway, so the update is done in place.
+
+**Not kept (yet)**: GLMMHDTurb's fastest kernels are CUDA-specific. They are shared-memory tiles in
+Float16 with Float32 updates (1900 Mcell/s for GLM on an A6000), and `nvcc` line-marches driven from
+Julia (3100 Mcell/s). They assume a periodic box indexed by wrap-around and record no fluxes.
+NestedMHD's portable kernels use global-memory scratch for the reconstruction (36–39 values per cell)
+and the fluxes (27 or 24), which is several times the memory traffic of the tiled kernels.
+@sec-roadmap describes how the tiled kernel could be brought into a patch with flux export.
+
+## Reproducing everything {#sec-repro}
+
+```sh
+cd core
+julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'          # the validation suite (~3 min on 2 threads)
+julia -t auto --project bench/run_experiments.jl                         # all datasets → ../app/data/*.json
+julia -t auto --project bench/run_experiments.jl ghost convergence      # or a subset
+```

@@ -1,0 +1,55 @@
+---
+title: "Status, reproducibility and how to cite"
+---
+
+## This build
+
+Rendered from commit [{{< var build.sha >}}](https://github.com/yipihey/NestedTurbulence/commit/{{< var build.commit >}})
+of {{< var build.date >}} (rendered {{< var build.rendered >}}) by the
+[publish workflow](https://github.com/yipihey/NestedTurbulence/actions/workflows/publish.yml).
+
+## What is verified, and where
+
+- **The numerical core** (`core/`, the Julia package `NestedMHD`) has a validation suite,
+  `core/test/runtests.jl`, which the publish workflow runs on every push before rendering. Every
+  claim in the text that rests on one of its tests carries a ✓ badge linking to the `@testset`.
+- **Superscript ⟨name⟩ marks** link to the line of `core/src` where the function next to an equation
+  is defined.
+- **Datasets** behind the widgets and the laboratory are `app/data/*.json`, written by
+  `core/bench/run_experiments.jl`. Each file records when, on which CPU and with how many threads it
+  was produced. They are committed, not regenerated in CI.
+- **Citations** were checked against NASA ADS; each entry carries its bibcode and DOI.
+
+## What is *not* verified
+
+- No GPU backend has been compiled or run. The kernels are portable by construction, but GPU
+  correctness and performance are untested (@sec-roadmap).
+- The tests and experiments use smooth problems, Orszag–Tang, and a cold-core advection problem.
+  Driven supersonic turbulence (GLMMHDTurb's target regime) has not been run on the nested driver.
+- Refinement is static. There is no regridding, and only one child per level is supported.
+
+## Lineage
+
+- [yipihey/GLMMHDTurb](https://github.com/yipihey/GLMMHDTurb): source of the pointwise physics and of
+  the performance practice (@sec-kept).
+- [Solaceonx/GLMMHDTurb, `sweep-fixes`](https://github.com/Solaceonx/GLMMHDTurb/tree/sweep-fixes):
+  the CT fix (full slope, three-direction predictor, Gardiner–Stone EMFs), the HLLD guard, and $c_h$
+  from the CFL step.
+- `cascade_gravity` (Rust): the subcycled cascade MHD driver, whose refluxing and EMF-restriction
+  design was carried over, and whose first-order time accuracy at refinement boundaries is removed here.
+
+## How to cite
+
+The repository carries a `CITATION.cff`; GitHub shows it as "Cite this repository". Until a DOI is
+minted, cite the repository and the commit above.
+
+## Sharing a view of the laboratory
+
+Every state of the laboratory is encoded in the address bar (the part after `#`), so copying the URL
+shares the exact view. The *copy link* button does this. Plots download as SVG or CSV from their
+toolbars.
+
+## Annotating and discussing
+
+Pages carry the Hypothesis sidebar: select any passage to annotate it. Corrections are welcome as
+issues; every page has an *Edit this page* link.

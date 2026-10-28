@@ -1,0 +1,32 @@
+---
+title: "Notation and conventions"
+---
+
+| Symbol | Meaning | Where it is fixed |
+|---|---|---|
+| $\rho, \mathbf v, p, E$ | density, velocity, gas pressure, total energy density | @eq-mhd |
+| $\mathbf B$ | magnetic field, units with $\mu_0 = 1$ (Heaviside–Lorentz without $4\pi$) | @eq-flux |
+| $p_T$ | total pressure $p + B^2/2$ | @eq-flux |
+| $\gamma$ | adiabatic index (default 5/3) | @sec-equations |
+| $\psi, c_h, c_p$ | GLM scalar, cleaning speed, damping parameter | @eq-glm |
+| $E_x, E_y, E_z$ | edge electric fields (EMFs), $\mathbf E = -\mathbf v\times\mathbf B$ | @eq-ct, @eq-gs05 |
+| $C$ | Courant number on the criterion $\Delta t = C\Delta x/\max\sum_d(|v_d|+c_{f,d})$ | @sec-scheme |
+| $\ell$ | level index, root $\ell = 1$, refinement ratio 2 | @sec-nesting |
+| $a, b$ | first and last parent cell covered by a child (global indices) | @sec-nesting |
+| $t_{p0}, t_{p1}, \theta$ | parent step start and end, interpolation weight | @eq-theta |
+| $g$ | ghost cells per side (2) | @sec-data |
+| MU | covered-region update margin (2 parent cells) | @sec-kernels |
+
+**Indices.** Patch-local indices are 1-based, with interior cells $g+1..g+n$. `bx[i,j,k]` is the
+lower $x$-face of cell $(i,j,k)$. `ex[i,j,k]` is the $x$-edge at $(i, j-\tfrac12, k-\tfrac12)$, and
+cyclically. Fine global cell $G$ lies in coarse cell $\lfloor (G+1)/2\rfloor$; odd $G$ is the lower half.
+
+**Measured quantities.**
+
+- $\max|\nabla\cdot\mathbf B|\,\Delta x/\max|\mathbf B|$ is the maximum over interior cells of a level.
+  For CT it uses the exact face divergence; for GLM, central differences of the cell field. It is
+  dimensionless, and $10^{-15}$ is rounding in `Float64`.
+- Totals (mass, momentum, energy) are sums over the root level times $\Delta x^3$. Covered root cells
+  hold the restricted child data, so this is the whole box.
+- $v_\mathrm{rms} = (\sum\rho v^2/\sum\rho)^{1/2}$, as in GLMMHDTurb.
+- "Ghost error" is the maximum over child ghost cells and over all child steps of $|B_y - B_y^\text{exact}|$.

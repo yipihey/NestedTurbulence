@@ -1,0 +1,70 @@
+/* hcc.css - minimal styles for the hcc visualization library (js/viz/*).
+ *
+ * Theme-agnostic by construction: text colour is inherited, and tints are
+ * derived from `currentColor` via color-mix(), so the same rules work on light
+ * and dark pages (OS preference, Bootstrap/Quarto dark toggle, or neither).
+ * All rules are scoped to .qd-* classes and are safe inside Bootstrap pages. */
+
+:root {
+  --qd-accent: #0072b2;
+  --qd-gap: 0.75rem;
+  --qd-radius: 6px;
+  --qd-border: color-mix(in srgb, currentColor 22%, transparent);
+  --qd-tint: color-mix(in srgb, currentColor 5%, transparent);
+  --qd-muted: color-mix(in srgb, currentColor 65%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-bs-theme="light"]):not(.quarto-light) { --qd-accent: #56b4e9; color-scheme: dark; }
+}
+[data-bs-theme="dark"], .quarto-dark { --qd-accent: #56b4e9; }
+
+/* standalone demo page helper (not used inside Quarto) */
+.qd-page { max-width: 1100px; margin: 0 auto; padding: 1rem; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+@media (prefers-color-scheme: dark) { .qd-page-body { background: #14161a; color: #e6e8eb; } }
+@media (prefers-color-scheme: light) { .qd-page-body { background: #fff; color: #1b1e23; } }
+
+/* control containers */
+.qd-controls { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; margin: 0.5rem 0; font-size: 0.875rem; }
+.qd-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+.qd-ctl { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; font-weight: normal; }
+.qd-label { color: var(--qd-muted); white-space: nowrap; }
+.qd-slider input[type="range"] { width: 9rem; accent-color: var(--qd-accent); }
+.qd-value { min-width: 3.2em; font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8125rem; }
+.qd-select select { font: inherit; font-size: 0.8125rem; padding: 0.15rem 0.4rem; border: 1px solid var(--qd-border); border-radius: 4px; background: transparent; color: inherit; width: auto; }
+.qd-select select option { color: #111; background: #fff; }
+.qd-check input { accent-color: var(--qd-accent); margin: 0; }
+.qd-btn { font: inherit; font-size: 0.8125rem; padding: 0.15rem 0.7rem; border: 1px solid var(--qd-border); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.qd-btn:hover { background: var(--qd-tint); }
+.qd-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* panels */
+.qd-panel { border: 1px solid var(--qd-border); border-radius: var(--qd-radius); background: var(--qd-tint); padding: 0.6rem; min-width: 0; }
+.qd-panel > h3, .qd-panel > .qd-title { margin: 0 0 0.4rem; font-size: 0.95rem; font-weight: 600; }
+.qd-panel canvas { display: block; width: 100%; aspect-ratio: 1 / 1; border-radius: 3px; }
+.qd-panel canvas.qd-wide { aspect-ratio: 16 / 9; }
+.qd-panel .qd-plot { margin: 0 auto; }
+.qd-plot-tools { display: flex; flex-wrap: wrap; gap: 0.15rem 0.6rem; align-items: center; margin: 0.15rem auto 0; font-size: 0.7rem; color: var(--qd-muted); line-height: 1.4; }
+.qd-plot-tools .qd-pt-axis { display: inline-flex; align-items: center; gap: 0.2rem; }
+.qd-plot-tools .qd-pt-label { font-weight: 600; }
+.qd-plot-tools .qd-pt-btn { font: inherit; padding: 0 0.35rem; border: 1px solid var(--qd-border); border-radius: 3px; background: transparent; color: inherit; cursor: pointer; line-height: 1.3; }
+.qd-plot-tools .qd-pt-btn:hover { border-color: var(--qd-accent, #0072B2); color: var(--qd-accent, #0072B2); }
+.qd-plot-tools .qd-pt-in { font: inherit; width: 4.6em; padding: 0 0.2rem; border: 1px solid var(--qd-border); border-radius: 3px; background: transparent; color: inherit; text-align: right; }
+.qd-plot-tools .qd-pt-dash { opacity: 0.6; }
+.qd-plot-tools .qd-pt-readout { margin-left: auto; font-variant-numeric: tabular-nums; min-width: 9em; text-align: right; }
+.qd-plot-tools.is-changed .qd-pt-reset { border-color: var(--qd-accent, #0072B2); color: var(--qd-accent, #0072B2); }
+.qd-with-bar { display: flex; gap: 0.5rem; align-items: stretch; }
+.qd-with-bar > .qd-stage { position: relative; flex: 1 1 auto; min-width: 0; }
+.qd-with-bar > canvas.qd-colorbar { flex: 0 0 auto; width: 84px; height: auto; min-height: 0; aspect-ratio: auto; align-self: stretch; contain: size; }  /* contain: size — the bar's pixel buffer is sized from its rendered height (× devicePixelRatio), and without containment that intrinsic size would grow the row on Retina displays */
+.qd-note { color: var(--qd-muted); font-size: 0.8125rem; margin: 0.25rem 0; }
+.qd-badge { display: inline-block; font-size: 0.7rem; padding: 0 0.4rem; border-radius: 3px; border: 1px solid var(--qd-border); color: var(--qd-muted); vertical-align: middle; margin-left: 0.4rem; }
+
+/* responsive grids of panels */
+.qd-grid2, .qd-grid3 { display: grid; gap: var(--qd-gap); margin: var(--qd-gap) 0; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .qd-grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .qd-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 960px) { .qd-grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* landing page call-to-action buttons and chapter widgets */
+.qd-cta { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 1.25rem 0; }
+.qd-widget { margin: 1rem 0 1.5rem; }
+.qd-widget .qd-controls { padding: 0.5rem 0.75rem; border: 1px solid var(--qd-border); border-radius: var(--qd-radius); background: var(--qd-tint); }
+.qd-widget .qd-slider input[type="range"] { width: 11rem; }

@@ -1,0 +1,77 @@
+project:
+  type: book
+  output-dir: _site
+  pre-render:
+    - scripts/build_info.py
+    - scripts/brand_to_css.py
+  # copied verbatim into _site: the standalone laboratory with its datasets
+  resources:
+    - app/**
+
+# quadrant: where the provenance shortcodes look things up (Julia core: links go to the source on GitHub)
+quadrant:
+  language: julia
+  src: core/src
+  tests: core/test
+  app: app/index.html
+
+book:
+  title: "NestedTurbulence"
+  subtitle: "Adaptively subcycled nested-grid MHD with constrained transport or GLM cleaning, on KernelAbstractions"
+  author: "Tom Abel"
+  date: today
+  site-url: https://yipihey.github.io/NestedTurbulence/
+  repo-url: https://github.com/yipihey/NestedTurbulence
+  repo-branch: main
+  repo-actions: [edit, source, issue]
+  search: true
+  navbar:
+    right:
+      - text: "Laboratory"
+        href: app/index.html
+  sidebar:
+    style: docked
+  chapters:
+    - index.qmd
+    - chapters/01-methods.qmd
+    - chapters/02-implementation.qmd
+    - chapters/03-validation.qmd
+    - chapters/04-performance.qmd
+    - chapters/05-orszag-tang.qmd
+    - chapters/references.qmd
+  appendices:
+    - chapters/notation.qmd
+    - chapters/status.qmd
+  page-footer:
+    left: "NestedTurbulence · MIT License"
+    right: "build {{< var build.sha >}} · {{< var build.date >}}"
+
+bibliography: chapters/references.bib
+
+citation:
+  type: book
+  author: "Tom Abel"
+  issued: 2026
+  url: https://yipihey.github.io/NestedTurbulence/
+appendix-cite-as: [display, bibtex]
+
+format:
+  html:
+    theme:
+      light: cosmo
+      dark: darkly
+    css:
+      - app/css/quadrant.css
+      - app/css/book.css
+    toc: true
+    number-sections: true
+    number-depth: 2
+    code-fold: true
+    code-tools: true
+    html-math-method: katex
+    include-in-header: includes/head.html
+    date-modified: last-modified
+    comments:
+      hypothesis:
+        theme: clean
+        openSidebar: false

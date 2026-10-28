@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this code or report, please cite it as below."
+title: "NestedTurbulence: adaptively subcycled nested-grid MHD with constrained transport or GLM cleaning"
+type: software
+authors:
+  - family-names: Abel
+    given-names: Tom
+    affiliation: "KIPAC, Stanford University / SLAC"
+repository-code: "https://github.com/yipihey/NestedTurbulence"
+url: "https://yipihey.github.io/NestedTurbulence/"
+license: MIT
+date-released: 2026-10-28
