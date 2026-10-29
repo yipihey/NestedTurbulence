@@ -11,3 +11,4 @@
 /.quarto/
 **/*.quarto_ipynb
 /app/data/test*
+/app/data/ens*

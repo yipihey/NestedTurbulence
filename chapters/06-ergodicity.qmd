@@ -129,7 +129,7 @@ with $b \approx 1/3$ for solenoidal and $b \approx 1$ for compressive driving in
 $\langle\rho\rangle_V = \rho_0$. The mass-weighted PDF is the same Gaussian shifted to $+\sigma_s^2/2$. An
 ergodicity test has to compare like with like: the probe's time PDF with the volume PDF. The rms Mach
 number has the same issue. Its volume-weighted value is dominated by fast, nearly empty gas, and its
-mass-weighted value by the dense gas that holds the kinetic energy (@sec-ergo-feedback).
+mass-weighted value by the dense gas that holds the kinetic energy (see the feedback in @sec-ergo-setup).
 
 ## Setting up a test {#sec-ergo-setup}
 
@@ -160,7 +160,7 @@ statistics of the force. That is the homogeneity needed above.
 after every update, with $\gamma = 1.01$ in the Riemann solver, so $p = \rho c_s^2$ holds exactly in every
 cell {{< test "driven run" "p = ρ cs² everywhere" >}}.
 
-**Mach-number feedback.** {#sec-ergo-feedback} After every root step, the overall amplitude $A$ is
+**Mach-number feedback.** After every root step, the overall amplitude $A$ is
 multiplied by $(\mathcal M_\text{target}/\mathcal M)^{\Delta t/t_\text{fb}}$, with $t_\text{fb} = t_c/5$ and the
 logarithm of the factor clamped to $\pm 0.25$. $\mathcal M$ is measured on the root level, which holds the
 restricted fine data, so it covers the whole box. We control the **mass-weighted** rms Mach
@@ -193,7 +193,73 @@ tails, so the two volume PDFs bracket the comparison.
 
 ## The run {#sec-ergo-run}
 
-RUN-RESULTS
+Root $64^2$ (periodic), two refined levels of $64^2$ cells each covering the central half of
+its parent, so the finest level resolves the central quarter of the box with $\Delta x = L/256$; the
+children span the box in $z$ (one root cell thick). Isothermal, $c_s = \rho_0 = 1$, uniform initial
+$B_x$ with $\beta = 2p/B^2 = 200$, CT, HLL, Courant 0.4, `Float64`. Driven to $t = 1 = 10\,t_c$ with
+seed 1. Script: `core/bench/run_mach10.jl`.
+
+- **Cost.** 493 s on two CPU threads. The levels took 6 944 / 15 723 / 28 314 steps, 2.3 and 1.8 per
+  parent step on average.
+- **Constraint.** $\max|\nabla\cdot\mathbf B|\,\Delta x/\max|\mathbf B|$ stayed between
+  $2\times10^{-15}$ and $5\times10^{-14}$ on every level (sampled every $0.01$).
+- **Mach number.** The mass-weighted rms Mach number reaches 10 after about $0.3\,t_c$ and overshoots to 12 before the feedback catches it. Over
+  $t \ge 3\,t_c$ it averages $10.02$ with a standard deviation of $1.50$ (range 7.5–13.4); the
+  volume-weighted value averages $10.33 \pm 1.33$. The feedback holds the *mean* at the target. The 15 %
+  fluctuations about it are the variability of a flow driven by 14 modes, which a controller acting
+  on a time scale of $t_c/5$ does not remove (a faster one oscillated in our tests).
+- **The probe.** 14 157 records (every second finest step), 1.02 MB, at
+  $(x, y) = (0.50195, 0.50195)$.
+
+**Time against volume, over $3\,t_c \le t \le 10\,t_c$:**
+
+| | probe (time) | finest level (volume) | whole box, root (volume) |
+|---|---|---|---|
+| mean of $s = \ln\rho/\rho_0$ | $-2.15 \pm 0.27$ | $-1.92$ | $-1.88$ |
+| variance of $s$ | $3.11$ | $3.25$ | $4.66$ |
+
+The time mean at one point agrees with the volume mean of the finest level within 0.9 standard
+errors, and the variances within 5 %. The standard error comes from @eq-neff: for $s$ the
+integral time at the probe is $\tau_\text{int} = 0.081\,t_c$, so the seven crossing times hold about
+$N_\text{eff} = 43$ independent samples. For $v_x$ it is $0.31\,t_c$ and $N_\text{eff} \approx 12$: the
+velocity is correlated four times longer than the density, and its time mean ($-2.5 \pm 1.9$) is
+correspondingly uncertain.
+The ACF of $s$ does not simply decay: after its first zero at $0.25\,t_c$ it swings negative and
+returns to $+0.2$ near one crossing time (open the lab to see it). Integrating only to the first zero
+ignores that structure, so $N_\text{eff}$ is an estimate, good to perhaps a factor of two, not a measurement.
+
+Read this as *consistent with* ergodicity at the level of means and variances in one run: not as a
+confirmation. Three cautions:
+
+1. **Resolution.** The whole-box variance (4.66) is larger than the finest-level one (3.25), although
+   the root is coarser. The two volumes differ in more than resolution: the finest level sees only the
+   central $1/16$ of the area, and over seven crossing times a region that small does not sample all
+   large-scale states of the box. Which of the two the probe should agree with is part of the question.
+2. **The shape of the PDF.** Neither PDF is the lognormal of @eq-lognormal. The measured mean $-1.92$
+   differs from $-\sigma_s^2/2 = -1.62$ because the PDF is skewed toward low densities. With
+   $\sigma_s^2 \approx 3.2$, @eq-lognormal would require $b \approx 0.48$. That number is from 2-D
+   solenoidal driving, at modest resolution, and is not comparable with the 3-D values quoted above.
+3. **Non-conservative safeguards.** Voids reach $\rho \sim 10^{-5}$. A density floor
+   ($10^{-6}$) and the reflux guard of @sec-reflux-guard act there. Both change the low-density tail,
+   which the time PDF at one point samples rarely.
+
+The ensemble below, eight runs that differ only in the seed of the driving, gives an independent
+estimate of the scatter between time averages.
+
+ENSEMBLE-RESULTS
+
+### A positivity guard for refluxing {#sec-reflux-guard}
+
+This run found a failure of plain Berger–Colella refluxing. At $t \approx 0.063$ a nearly empty
+root cell beside the level-2 footprint ($\rho \approx 5\times10^{-4}$) received the momentum
+correction of its face, $\Delta(\rho v)\sim (\Delta t/\Delta x)\,\Delta(\rho v^2 + p)$ from much denser fine
+gas. Divided by its tiny density, that is a velocity of hundreds of $c_s$. The new velocity entered the
+child's ghost zones, the child's boundary flux grew, and so did the next correction: within
+$10^{-3}$ time units the velocity reached $3000\,c_s$ and the time step $10^{-6}$. The same happened
+without a magnetic field. The correction is now applied only if the corrected cell keeps a positive
+density and a positive thermal energy, as in Enzo. A skipped correction breaks exact conservation in
+that one cell. None of the conservative test problems trigger it: the suite still conserves to
+rounding.
 
 ## Explore it {#sec-ergo-lab}
 
