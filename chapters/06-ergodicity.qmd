@@ -246,7 +246,48 @@ confirmation. Three cautions:
 The ensemble below, eight runs that differ only in the seed of the driving, gives an independent
 estimate of the scatter between time averages.
 
-ENSEMBLE-RESULTS
+### The ensemble {#sec-ergo-ensemble}
+
+Seven more runs with identical set-up and seeds 2–8 (seed 1 is the run above) give an ensemble of
+eight. Each took 8–19 minutes. Over $3\,t_c \le t \le 10\,t_c$:
+
+| | mean over the 8 runs | scatter between runs |
+|---|---|---|
+| time mean of $s$ at the probe | $-1.91$ | $0.37$ |
+| volume mean of $s$, finest level | $-2.03$ | $0.25$ |
+| volume mean of $s$, whole box | $-1.94$ | $0.07$ |
+| mass-weighted rms Mach number | $10.0$–$10.9$ per run | |
+
+Three results:
+
+1. **The time averages are consistent with the ensemble.** The eight probe time means scatter by
+   $0.37$ about their mean. The error bar @eq-neff assigns to each one averages $0.45$, so the
+   estimate is about right, if anything slightly conservative. The ensemble mean of the time means,
+   $-1.91 \pm 0.13$, agrees with the whole-box volume mean, $-1.94$. In each run, the difference between
+   the probe's time mean and the finest-level volume mean, in units of its error bar, lies between
+   $-0.85$ and $+1.37$ (rms 0.71). This is what ergodicity predicts for means. It does not prove it.
+2. **The variance is a property of the run, not of the ensemble, over seven crossing times.** The
+   time variance of $s$ at the probe ranges from $3.1$ to $7.2$ between runs. Within each run it
+   follows the variance of the finest level closely: the ratio is $0.91$–$1.15$, and the
+   correlation over the eight runs is $0.96$. Its correlation with the whole-box variance, which
+   is much steadier ($4.7$–$5.7$), is only $0.39$. One point and the region around it share the same
+   history of large-scale flow, and seven crossing times are not enough for that history to
+   average out. Read at face value, a single run of this length would misjudge the ensemble variance
+   of $s$ by up to 40 %. That is a sampling error, not a failure of ergodicity, but it is the
+   practically relevant one.
+3. **An unexplained sign.** The time mean of $v_x$ at the probe, and the finest-level volume mean of
+   $v_x$, are negative in all eight runs ($-0.4$ to $-3.9$), while the whole-box volume mean scatters
+   around zero ($-1.2$ to $+0.8$). We tested whether the nesting causes this. A point-symmetric
+   problem (2-D Orszag–Tang) keeps its symmetry to rounding on the nest
+   ($|\rho - \rho_\text{rot}|/\rho \le 7\times10^{-16}$ to $t = 0.5$), as it does on a uniform grid. In
+   cheaper runs (root $16^2$), the central volume mean of $v_x$ is again negative for seeds 1–8 on the
+   nest. On a uniform $64^2$ grid it is negative for five of the same eight seeds, and the run-by-run
+   values are not correlated with the nested ones. Seeds 9–14 on the nest give mixed signs (4 of 6
+   $\ge 0$). These tests cannot tell whether this is a property of the realisations or a weak bias of the
+   nested scheme under Mach-10 conditions (floors, the reflux guard), with a run-to-run scatter of
+   several $c_s$. Eight negative signs in a row has a chance of 1 in 128 (two-sided). We have not found
+   a cause and report it as open.
+
 
 ### A positivity guard for refluxing {#sec-reflux-guard}
 
