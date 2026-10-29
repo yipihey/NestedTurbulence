@@ -79,8 +79,8 @@ function init!(H::Hierarchy, ic; vecpot=nothing)
                     EAz[I,J,K] = -0.5*(vecpot(x, y, z-q)[3] + vecpot(x, y, z+q)[3])
                 end
                 # emf_correct with dtc = -1:  B += curl(⟨A_f⟩ - A_c)/dx on the faces outside the footprint
-                emf_correct_kernel!(cpu)(bx, by, bz, exA, eyA, ezA, EAx, EAy, EAz, P.clo, nc, -one(T), T(1/P.dx);
-                                         ndrange=nc .+ 4)
+                emf_correct_kernel!(cpu)(bx, by, bz, exA, eyA, ezA, EAx, EAy, EAz, P.clo, nc, -one(T), T(1/P.dx), P.cper;
+                                         ndrange=emf_range(H.patches[l+1], nc))
             end
             cbx, cby, cbz = hb[l+1]
             restrict_faces_kernel!(cpu)(bx, cbx, Val(1), P.clo, G; ndrange=(nc[1]+1, nc[2], nc[3]))
@@ -146,10 +146,10 @@ function max_divb(H::Hierarchy)
             bx = Array(P.bx); by = Array(P.by); bz = Array(P.bz)
             bmax = max(maximum(abs, bx), maximum(abs, by), maximum(abs, bz), 1e-300)
             # periodic root: upper face of the last cell is the lower face of the first
-            up(i, m) = P.root ? G + mod(i - G - 1, m) + 1 : i
+            up(i, m, d) = P.per[d] ? G + mod(i - G - 1, m) + 1 : i
             d = 0.0
             for k in G+1:G+n[3], j in G+1:G+n[2], i in G+1:G+n[1]
-                v = (bx[up(i+1,n[1]),j,k] - bx[i,j,k]) + (by[i,up(j+1,n[2]),k] - by[i,j,k]) + (bz[i,j,up(k+1,n[3])] - bz[i,j,k])
+                v = (bx[up(i+1,n[1],1),j,k] - bx[i,j,k]) + (by[i,up(j+1,n[2],2),k] - by[i,j,k]) + (bz[i,j,up(k+1,n[3],3)] - bz[i,j,k])
                 d = max(d, abs(Float64(v)))
             end
             push!(out, d / bmax)
@@ -157,8 +157,11 @@ function max_divb(H::Hierarchy)
             U = Array(P.U)
             bmax = max(maximum(abs, @view U[:,:,:,6:8]), 1e-300)
             d = 0.0
-            for k in G+2:G+n[3]-1, j in G+2:G+n[2]-1, i in G+2:G+n[1]-1
-                v = 0.5*((U[i+1,j,k,6] - U[i-1,j,k,6]) + (U[i,j+1,k,7] - U[i,j-1,k,7]) + (U[i,j,k+1,8] - U[i,j,k-1,8]))
+            w(i, m, e) = P.per[e] ? G + mod(i - G - 1, m) + 1 : i
+            rg(e) = P.per[e] ? (G+1:G+n[e]) : (G+2:G+n[e]-1)
+            for k in rg(3), j in rg(2), i in rg(1)
+                v = 0.5*((U[w(i+1,n[1],1),j,k,6] - U[w(i-1,n[1],1),j,k,6]) + (U[i,w(j+1,n[2],2),k,7] - U[i,w(j-1,n[2],2),k,7]) +
+                         (U[i,j,w(k+1,n[3],3),8] - U[i,j,w(k-1,n[3],3),8]))
                 d = max(d, abs(Float64(v)))
             end
             push!(out, d / bmax)

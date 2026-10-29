@@ -1,0 +1,213 @@
+---
+title: "Ergodicity in driven supersonic turbulence"
+---
+
+```{=html}
+<script type="module" src="../app/js/widgets.js"></script>
+```
+
+Statistical turbulence theory makes statements about *ensemble averages*: the mean of a quantity over
+infinitely many realisations of the flow that share the same forcing statistics. Nobody measures an
+ensemble. An observer, or a simulation, has one realisation. It provides either a *time average* at
+a fixed point (a probe, an anemometer, a spectrograph pointed at one line of sight) or a *volume
+average* at a fixed time (a snapshot, a map). Using either in place of the ensemble assumes the flow
+is ergodic. This chapter explains the assumption, shows what it rests on, and sets up a run in
+which it can be tested. The laboratory panel at the end lets you do the test yourself.
+
+## Three averages {#sec-ergo-averages}
+
+Let $q(\mathbf x, t)$ be a field of the flow, for example the log-density $s = \ln(\rho/\rho_0)$, and
+let $\omega$ label the realisation (in a simulation: the random seed of the driving). There are three
+averages:
+
+$$
+\langle q\rangle_\text{ens}(\mathbf x, t) = \lim_{M\to\infty}\frac1M\sum_{m=1}^M q(\mathbf x, t; \omega_m),\qquad
+\overline{q}^{\,T}(\mathbf x) = \frac1T\int_{t_0}^{t_0+T} q(\mathbf x, t)\,dt,\qquad
+\langle q\rangle_V(t) = \frac1V\int_V q(\mathbf x, t)\,d^3x .
+$$ {#eq-averages}
+
+The ensemble average is the object of the theory. The other two are what we can compute. Two
+properties of the turbulence connect them:
+
+- **Statistical stationarity.** If the statistics do not change in time, $\langle q\rangle_\text{ens}$
+  does not depend on $t$. Driven turbulence becomes stationary after a few large-eddy turnover times,
+  once the injected energy is balanced by dissipation.
+- **Statistical homogeneity.** If the statistics do not change from place to place,
+  $\langle q\rangle_\text{ens}$ does not depend on $\mathbf x$. A periodic box driven by a force whose
+  statistics are translation invariant is homogeneous.
+
+The ergodic hypothesis is the statement that, in a stationary flow,
+
+$$
+\lim_{T\to\infty}\overline{q}^{\,T}(\mathbf x) = \langle q\rangle_\text{ens}
+$$ {#eq-ergodic}
+
+for almost every realisation. Birkhoff's theorem [@birkhoff1931] proves this for any measure-preserving
+dynamical system whose invariant measure cannot be split into two invariant parts (metric
+transitivity). The theorem is exact, but its hypothesis cannot be checked directly for the Navier–Stokes or
+MHD equations, let alone for their discretisations. For turbulence, ergodicity is a working
+assumption. It is supported by experiments and simulations [@frisch1995; @galanti2004; @djenidi2013], not proved.
+The analogous statement for volume averages, $\langle q\rangle_V \to \langle q\rangle_\text{ens}$ as
+$V\to\infty$, rests on homogeneity plus the decay of spatial correlations. In a box of fixed size $L$
+it is only approximate: a box holds a finite number of independent large eddies.
+
+**What the literature shows.** The rigorous results need help from the model, namely stochastic forcing.
+Hairer & Mattingly [-@hairer2006] prove that the 2-D incompressible Navier–Stokes equations, driven by
+white noise acting on only a few Fourier modes, have a unique invariant measure, so time averages
+converge to the same limit from every initial condition. Romito [-@romito2004] proves ergodicity for a
+*finite-dimensional* approximation of the 3-D equations driven by degenerate noise. We know of no
+proof for the full equations with deterministic forcing, and none for compressible MHD. Our driver
+(Ornstein–Uhlenbeck amplitudes on 14 modes) is of the stochastic kind these theorems assume, but our
+equations are compressible, isothermal and magnetised. The theorems make the hypothesis plausible
+here. They do not establish it. The direct numerical tests compare averages and find agreement: Galanti &
+Tsinober [-@galanti2004] report temporal and spatial statistics of a long forced periodic-box
+Navier–Stokes run to be clearly similar, which they present as evidence for ergodicity, not a proof;
+Djenidi, Tardu & Antonia [-@djenidi2013] compare temporal and spatial averages in simulated grid
+turbulence; Higgins et al. [-@higgins2013] find, from lidar data, that atmospheric surface-layer flows
+are ergodic above uniform surfaces, away from sharp transitions. There are counter-examples. In long *ideal* (non-dissipative), Fourier-truncated MHD
+runs the lowest modes keep large means compared with their fluctuations, which Shebalin
+[-@shebalin2013] calls broken ergodicity. In forced, dissipative MHD, McKay et al. [-@mckay2017] found
+that an ensemble of runs with identical parameters and sinusoidal forcing showed large long-time
+differences in cross helicity, and question ergodicity for that forcing. MHD, our case, is where
+the assumption has been seen to fail, so it is worth testing.
+
+::: {.callout-note title="What is proved and what is assumed"}
+*Proved:* Birkhoff's theorem, for measure-preserving, metrically transitive systems; a unique invariant
+measure for noise-driven 2-D Navier–Stokes [@hairer2006] and for noise-driven, truncated 3-D
+Navier–Stokes [@romito2004]. *Assumed:* that
+a driven, dissipative turbulent flow, or its numerical model, has such an invariant measure on its
+attractor and samples it. The test below is evidence for or against that assumption in one run,
+not a proof.
+:::
+
+## How long is long enough? {#sec-ergo-time}
+
+The limit $T\to\infty$ in @eq-ergodic is never reached, so the question is how fast the time average
+converges. Successive values of $q$ at one point are correlated. If the normalised autocorrelation
+function is
+
+$$
+C(\tau) = \frac{\langle (q(t)-\bar q)(q(t+\tau)-\bar q)\rangle}{\sigma_q^2},\qquad
+\tau_\text{int} = \int_0^\infty C(\tau)\,d\tau,
+$$ {#eq-acf}
+
+then for $T \gg \tau_\text{int}$ the variance of the time average is
+
+$$
+\operatorname{Var}\big(\overline{q}^{\,T}\big) \simeq \frac{2\tau_\text{int}}{T}\,\sigma_q^2
+= \frac{\sigma_q^2}{N_\text{eff}},\qquad N_\text{eff} = \frac{T}{2\tau_\text{int}} .
+$$ {#eq-neff}
+
+A record of length $T$ is worth $N_\text{eff}$ independent samples, however finely it is sampled.
+Sampling every second time step, as our probe does, resolves $C(\tau)$, but more samples per
+$\tau_\text{int}$ do not shrink the error bar. In practice $\tau_\text{int}$ is estimated by integrating
+the measured $C(\tau)$ up to its first zero crossing. That estimate is biased low when the record is
+short, which makes the error bar too small. The laboratory shows how $\tau_\text{int}$ and
+$N_\text{eff}$ change as you shorten the window.
+
+For supersonic turbulence the natural unit is the large-scale crossing time
+$t_c = L/(\mathcal M c_s)$. At a fixed point, $\tau_\text{int}$ is set by how long a structure takes
+to sweep past, so it is a fraction of $t_c$ for velocities, and longer for the density. A run of ten
+crossing times, the conventional length of a driven-turbulence study, gives at most a few tens of
+independent samples per point. Statistics measured from a single probe therefore carry error bars of
+order $\sigma_q/\sqrt{N_\text{eff}}$, which can be several tenths of $\sigma_q$.
+
+## Volume, mass and time weighting {#sec-ergo-weighting}
+
+A probe at a fixed point weights each moment of time equally, and so samples the *volume-weighted*
+distribution: a point spends a fraction of time inside dense gas equal to the volume fraction of
+dense gas. It does not sample the mass-weighted distribution. For isothermal supersonic turbulence
+the volume-weighted PDF of $s$ is close to a Gaussian [@vazquez1994]:
+
+$$
+p_V(s) = \frac{1}{\sqrt{2\pi\sigma_s^2}}\exp\!\Big[-\frac{(s+\sigma_s^2/2)^2}{2\sigma_s^2}\Big],\qquad
+\sigma_s^2 \approx \ln\!\big(1 + b^2\mathcal M^2\big),
+$$ {#eq-lognormal}
+
+with $b \approx 1/3$ for solenoidal and $b \approx 1$ for compressive driving in 3-D
+[@federrath2010; @price2011]. The mean $\langle s\rangle_V = -\sigma_s^2/2$ is fixed by mass conservation,
+$\langle\rho\rangle_V = \rho_0$. The mass-weighted PDF is the same Gaussian shifted to $+\sigma_s^2/2$. An
+ergodicity test has to compare like with like: the probe's time PDF with the volume PDF. The rms Mach
+number has the same issue. Its volume-weighted value is dominated by fast, nearly empty gas, and its
+mass-weighted value by the dense gas that holds the kinetic energy (@sec-ergo-feedback).
+
+## Setting up a test {#sec-ergo-setup}
+
+A test of @eq-ergodic needs a flow that is, as far as possible, stationary and homogeneous by
+construction. Then any remaining difference between time and volume statistics is evidence about
+ergodicity, or about the length of the run, and not a trivial consequence of the set-up.
+
+**Driving with a finite set of modes in real space.** The acceleration is
+
+$$
+\mathbf a(\mathbf x, t) = A(t)\sum_{m} 2\,\mathrm{Re}\big[\hat{\mathbf a}_m(t)\,e^{2\pi i\,\mathbf k_m\cdot\mathbf x/L}\big],
+$$ {#eq-forcing}
+
+a sum over the 14 integer wave vectors with $1 \le |\mathbf k| \le 3$ in the plane (one of each $\pm\mathbf k$
+pair). Each amplitude $\hat{\mathbf a}_m$ follows an Ornstein–Uhlenbeck process with correlation time
+$t_c/2$ [@eswaran1988], projected onto its solenoidal part [@federrath2010]. The process is sampled
+on a fixed grid of times and interpolated linearly, so $\mathbf a$ is a deterministic function of
+$(\mathbf x, t)$. It is evaluated analytically in every cell of every level, at that level's own time.
+That is why the force is the same on all levels. Each cell receives the *exact cell average* of
+@eq-forcing (each Fourier mode times $\prod_d \operatorname{sinc}(k_d\Delta x/L)$), so the average of the
+fine-level force over a coarse cell equals the coarse-level force to rounding
+{{< test "driving: the same force on every level" "restriction of the fine kick" >}}. A spectral
+driver that computes the force on one grid by FFT could not be applied to a nested hierarchy
+this way. Since the wave vectors and the OU statistics are translation invariant, so are the
+statistics of the force. That is the homogeneity needed above.
+
+**Isothermal gas.** The total energy is reset to $\rho c_s^2/(\gamma-1) + \tfrac12\rho v^2 + \tfrac12 B^2$
+after every update, with $\gamma = 1.01$ in the Riemann solver, so $p = \rho c_s^2$ holds exactly in every
+cell {{< test "driven run" "p = ρ cs² everywhere" >}}.
+
+**Mach-number feedback.** {#sec-ergo-feedback} After every root step, the overall amplitude $A$ is
+multiplied by $(\mathcal M_\text{target}/\mathcal M)^{\Delta t/t_\text{fb}}$, with $t_\text{fb} = t_c/5$ and the
+logarithm of the factor clamped to $\pm 0.25$. $\mathcal M$ is measured on the root level, which holds the
+restricted fine data, so it covers the whole box. We control the **mass-weighted** rms Mach
+number $(\sum\rho v^2/\sum\rho)^{1/2}/c_s$, which measures the kinetic energy. Controlling the
+volume-weighted value failed in our first tests: in 2-D at Mach 10 it is dominated by evacuated
+regions. An acceleration drives gas at $\rho = 10^{-4}$ exactly as hard as dense gas, so the voids reach
+high speeds. Holding their Mach number at 10 throttled the driving until the dense gas had slowed to
+Mach 4. Both values are recorded. The mean momentum injected by $\rho\mathbf a$ (non-zero, because
+$\rho$ and $\mathbf a$ are correlated) is removed after every root step by a Galilean shift applied to
+all levels.
+
+**The probe.** The cell of the finest level whose lower corner is the box centre (one of the four most
+central cells) is recorded every second step of that level: $t$, $\rho$, $\mathbf v$, $\mathbf B$, $p$ in
+`Float64`. Records are buffered and appended to a binary file during the run, so a long run never holds
+its whole history in memory, and a run that crashes loses only the unflushed buffer. The format is
+self-describing: a magic string, the variable names, the cell position and size, and a JSON metadata
+string, followed by fixed-length records. A Julia reader (`read_probe`) and the JavaScript reader of the
+laboratory decode it. The test suite checks the round trip
+{{< test "driven run" "probe file round trip" >}}.
+
+**Why 2-D, and what nesting does to the test.** The run is 2-D (one cell thick in $z$, periodic) so
+that ten crossing times fit in a CPU run of about an hour. 2-D turbulence differs from 3-D
+turbulence: energy cascades to large scales, and coherent vortices live long. Both lengthen
+correlation times. The probe sits in the finest level, which resolves the central quarter of the box
+four times better than the root. Its statistics are those of the better-resolved flow. The volume
+statistics are computed in two ways: over the finest level (same resolution as the probe, but only a
+quarter of the box in each direction) and over the root (the whole box, at a quarter of the
+resolution, holding restricted fine data in its centre). The density PDF depends on resolution in its
+tails, so the two volume PDFs bracket the comparison.
+
+## The run {#sec-ergo-run}
+
+RUN-RESULTS
+
+## Explore it {#sec-ergo-lab}
+
+```{=html}
+<div class="qd-widget" data-widget="ergo"></div>
+```
+
+The panel reads the probe file directly, `app/data/mach10_probe.bin`, the same bytes the
+simulation wrote. Move the averaging window and watch three things: the time PDF at the probe against
+the volume PDFs, the autocorrelation time and the number of independent samples it implies, and the
+running time average closing in on the volume average, or failing to.
+
+::: {.callout-tip title="Try it"}
+Shrink the window to one crossing time and slide it along the run: the time PDF of a single point over
+one $t_c$ looks nothing like the volume PDF. Then widen it to the full stationary interval.
+{{< lab "ex=ergo&w0=3&wl=1" "One crossing time" >}} · {{< lab "ex=ergo&ev=vx" "The x-velocity" >}}
+:::

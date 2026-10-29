@@ -13,8 +13,11 @@ The numerical core is the Julia package `NestedMHD` in [`core/`](https://github.
 | `src/interlevel.jl` | parent–child kernels: snapshot, prolongation, restriction, flux/EMF accumulation, reflux, EMF correction |
 | `src/hierarchy.jl` | patch and hierarchy types, the recursive adaptive driver |
 | `src/setup.jl` | initial conditions (vector potential), totals, $\nabla\cdot\mathbf B$ diagnostics |
+| `src/forcing.jl` | turbulence driving (finite Fourier modes in real space, OU amplitudes), isothermal reset, Mach feedback |
+| `src/probe.jl` | one-cell time series streamed to a self-describing binary file, and its reader |
 | `test/runtests.jl` | the validation suite cited by the ✓ badges |
-| `bench/run_experiments.jl` | every dataset in this report and the laboratory |
+| `bench/run_experiments.jl` | every dataset in this report and the laboratory except the next one |
+| `bench/run_mach10.jl` | the driven Mach-10 run of @sec-ergo-run |
 
 ```julia
 using NestedMHD

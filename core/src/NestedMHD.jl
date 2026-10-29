@@ -20,13 +20,17 @@ module NestedMHD
 using KernelAbstractions
 const KA = KernelAbstractions
 using Printf
+using Random
 
 export Hierarchy, nested_central, init!, evolve!, totals, max_divb, level_summary
+export Driving, Probe, read_probe, rms_mach, amplitudes
 
 include("physics.jl")
 include("kernels.jl")
 include("interlevel.jl")
 include("hierarchy.jl")
 include("setup.jl")
+include("forcing.jl")
+include("probe.jl")
 
 end # module

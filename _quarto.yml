@@ -38,6 +38,7 @@ book:
     - chapters/03-validation.qmd
     - chapters/04-performance.qmd
     - chapters/05-orszag-tang.qmd
+    - chapters/06-ergodicity.qmd
     - chapters/references.qmd
   appendices:
     - chapters/notation.qmd

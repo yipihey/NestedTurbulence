@@ -105,6 +105,65 @@ cold_A(x, y, z) = (0.0, 0.0, 0.1*y)
         @test upd[1] < 0.6 * upd[2]                 # the cold levels take one step per parent step
     end
 
+    @testset "2-D nests (children span z periodically): $mode" for mode in (:glm, :ct)
+        ot2(x, y, z) = (25/(36π), -sin(2π*y), sin(2π*x), 0.0, 5/(12π), -b0*sin(2π*y), b0*sin(4π*x), 0.0)
+        a2(x, y, z) = (0.0, 0.0, b0*(cos(4π*x)/(4π) + cos(2π*y)/(2π)))
+        H = Hierarchy(; N0=(16,16,1), levels=[((9,9,1),(16,16,2)), ((25,25,1),(16,16,4))], mode=mode, T=Float64)
+        @test [P.per for P in H.patches] == [(true,true,true), (false,false,true), (false,false,true)]
+        init!(H, ot2; vecpot=a2); t0 = totals(H)
+        evolve!(H, 0.1); t1 = totals(H)
+        @test rel(t1.mass, t0.mass) < 1e-13
+        @test rel(t1.energy, t0.energy) < 1e-13
+        @test abs(t1.momz) < 1e-14
+        mode === :ct && @test maximum(max_divb(H)) < 1e-13
+        for P in H.patches[2:end]                       # the solution stays exactly z-independent
+            U = Array(P.U)
+            @test all(k -> U[:,:,k,:] == U[:,:,3,:], 3:2+P.n[3])
+        end
+    end
+    @testset "driving: the same force on every level" begin
+        H = Hierarchy(; N0=(16,16,1), levels=[((5,5,1),(16,16,2))], mode=:ct, T=Float64, gamma=1.01)
+        init!(H, (x,y,z) -> (1.0, 0.0, 0.0, 0.0, 1.0, 0.1, 0.0, 0.0); vecpot=(x,y,z) -> (0.0, 0.0, 0.1y))
+        d = Driving(H; mach=10.0, kmax=3, zeta=0.5, isothermal=false)
+        @test size(d.K, 2) == 14 && all(d.K[3, :] .== 0)
+        for P in H.patches; NM.apply_sources!(d, H, P, 0.0, 1e-3); end
+        Pr, Pc = H.patches; Ur = Array(Pr.U); Uc = Array(Pc.U); g = 2
+        err = 0.0                    # restriction of the fine kick equals the coarse kick (exact cell averages)
+        for J in 1:Pr.nc[2], I in 1:Pr.nc[1], v in 2:3
+            fi = g + 2I - 1; fj = g + 2J - 1
+            fine = 0.25*(Uc[fi,fj,3,v] + Uc[fi+1,fj,3,v] + Uc[fi,fj+1,3,v] + Uc[fi+1,fj+1,3,v])
+            err = max(err, abs(fine - Ur[Pr.clo[1]+I-1, Pr.clo[2]+J-1, 3, v]))
+        end
+        @test err < 1e-13 * maximum(abs, Ur[:,:,3,2:3])
+        a = [sqrt(2*sum(abs2, amplitudes(d, t))) for t in 0:0.01:2]   # unit-rms OU field, continuous in t
+        @test 0.5 < sum(a)/length(a) < 1.5
+        @test maximum(abs, amplitudes(d, 0.3001) .- amplitudes(d, 0.3)) < 1e-2
+    end
+    @testset "driven run: isothermal, zero mean momentum, probe file round trip" begin
+        H = Hierarchy(; N0=(16,16,1), levels=[((9,9,1),(16,16,2))], mode=:ct, T=Float64, gamma=1.01)
+        init!(H, (x,y,z) -> (1.0, 0.0, 0.0, 0.0, 1.0, 0.1, 0.0, 0.0); vecpot=(x,y,z) -> (0.0, 0.0, 0.1y))
+        d = Driving(H; mach=2.0); push!(H.sources, d)
+        path = tempname()
+        pr = Probe(H, path; cs=1.0, flush_every=7, meta="{\"test\":1}"); push!(H.sources, pr)
+        m0 = totals(H).mass
+        evolve!(H, 0.1)
+        tt = totals(H)
+        @test rel(tt.mass, m0) < 1e-13
+        @test abs(tt.momx) + abs(tt.momy) < 1e-12
+        @test maximum(max_divb(H)) < 1e-13
+        U = Array(H.patches[2].U); ρ = U[3:end-2,3:end-2,3,1]
+        eint = U[3:end-2,3:end-2,3,5] .- (U[3:end-2,3:end-2,3,2].^2 .+ U[3:end-2,3:end-2,3,3].^2) ./ (2ρ) .-
+               0.5 .* (U[3:end-2,3:end-2,3,6].^2 .+ U[3:end-2,3:end-2,3,7].^2 .+ U[3:end-2,3:end-2,3,8].^2)
+        @test maximum(abs, eint .* 0.01 ./ ρ .- 1) < 1e-10                # p = ρ cs² everywhere
+        @test pr.nrec == H.nsteps[2] ÷ 2
+        r = read_probe(path)
+        @test r.vars == ["rho", "vx", "vy", "vz", "Bx", "By", "Bz", "p"] && r.meta == "{\"test\":1}"
+        @test length(r.t) == pr.nrec && issorted(r.t) && r.level == 2 && r.every == 2
+        @test r.x[1] ≈ 0.5 + r.dx/2 && r.x[2] ≈ 0.5 + r.dx/2
+        i, j, k = pr.cell
+        iseven(H.nsteps[2]) && @test r.data[end, 1] == U[i,j,k,1]     # (v is recorded before the root's Galilean shift)
+        @test all(r.data[:, 8] .== r.data[:, 1])                          # isothermal p = ρ cs², cs = 1
+    end
     @testset "Float32 nested CT" begin
         H = nested_central(16, 2; n=16, mode=:ct, T=Float32)
         init!(H, ot; vecpot=aot); t0 = totals(H); evolve!(H, 0.05)
