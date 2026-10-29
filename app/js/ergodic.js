@@ -126,6 +126,7 @@ export async function mountErgo(host, S, onChange = () => {}) {
   const acfPlot = new LinePlot(pAcf, { width: 470, height: 320 });
   const runPlot = new LinePlot(pRun, { width: 960, height: 280 });
 
+  let ensRedraw = null;
   function draw() {
     const V = VARS[S.evar]; const y = V.get(P, B0); const t = P.t;
     const t0 = S.w0 * tc, t1 = Math.min(t[t.length - 1], (S.w0 + S.wl) * tc);
@@ -227,6 +228,7 @@ export async function mountErgo(host, S, onChange = () => {}) {
     const body = tb.createTBody(); rows.forEach((r) => { const tr = body.insertRow(); r.forEach((x) => { tr.insertCell().textContent = x; }); });
     tab.appendChild(tb);
     drawMap();
+    if (ensRedraw) ensRedraw();
     onChange(S);
   }
   select(bar, { label: 'variable', options: ERGO_VARS.map((k) => ({ value: k, label: VARS[k].label })), value: S.evar, onChange: (x) => { S.evar = x; draw(); } });
@@ -238,6 +240,66 @@ export async function mountErgo(host, S, onChange = () => {}) {
   checkbox(bar2, { label: 'patch outlines', value: S.outline, onChange: (x) => { S.outline = x; drawMap(); onChange(S); } });
   const tRead = readout(bar2, { label: 't =' });
   draw();
+  const ens = await loadData('mach10_ensemble').catch(() => null);
+  if (ens) { const box = div(host); ensRedraw = () => { box.innerHTML = ''; mountEnsemble(box, S, ens.data, tc); }; ensRedraw(); }
   div(host, 'qd-note', `Run: root ${D.params.N}², 3 levels, CT + HLL, isothermal, β = ${D.params.beta}, ${D.params.modes} solenoidal modes ${D.params.kmin} ≤ |k| ≤ ${D.params.kmax}, seed ${D.params.seed}; steps per level ${D.steps.join(' / ')}; wall ${(D.wall / 60).toFixed(0)} min. Computed ${meta.generated} on ${meta.cpu}, ${meta.threads} thread(s).`);
   return { draw };
+}
+
+// ---------------------------------------------------------------- the ensemble: same set-up, different driving seeds
+function mountEnsemble(host, S, E, tc) {
+  div(host, 'qd-title', `Ensemble: ${E.members} runs at root ${E.N}², identical except for the seed of the driving`);
+  const g = div(host, 'qd-grid2');
+  const pA = div(g, 'qd-panel'), pB = div(g, 'qd-panel');
+  const A = new LinePlot(pA, { width: 470, height: 320 }), B = new LinePlot(pB, { width: 470, height: 320 });
+  const tab = div(host);
+  const key = S.evar === 'vx' ? 'vx' : 's';
+  const label = key === 's' ? 's = ln(ρ/ρ₀)' : 'v_x / c_s';
+  const T = E.t.map((x) => x / tc);
+  // ensemble mean and spread at every time
+  const em = [], lo = [], hi = [];
+  for (let i = 0; i < E.t.length; i++) {
+    const v = E.runs.map((r) => r[key][i]).filter((x) => x !== null);
+    const m = v.reduce((a, x) => a + x, 0) / (v.length || 1);
+    const sd = Math.sqrt(v.reduce((a, x) => a + (x - m) ** 2, 0) / Math.max(1, v.length - 1));
+    em.push(v.length ? m : null); lo.push(v.length ? m - sd / Math.sqrt(v.length) : null); hi.push(v.length ? m + sd / Math.sqrt(v.length) : null);
+  }
+  // volume mean of s over all members, t ≥ 3 t_c (pooled histograms)
+  let volMean = null;
+  if (key === 's') {
+    const e = E.s_edges, w = e[1] - e[0]; let n = 0, sum = 0;
+    for (const r of E.runs) r.fine_s.forEach((c, b) => { n += c; sum += c * (e[b] + w / 2); });
+    volMean = sum / n;
+  }
+  const serA = [
+    { x: T, y: em, label: `ensemble mean over ${E.members} probes`, color: PALETTE[3], width: 2 },
+    { x: T, y: hi, label: '± standard error of the ensemble mean', color: PALETTE[3], width: 1, dash: '3 3' },
+    { x: T, y: lo, color: PALETTE[3], width: 1, dash: '3 3' },
+  ];
+  if (volMean !== null) serA.push({ x: [0, T[T.length - 1]], y: [volMean, volMean], label: 'volume mean, finest levels, t ≥ 3 t_c', color: PALETTE[1], dash: '6 3' });
+  A.setAxes({ xlabel: 't / t_c', ylabel: label, title: 'Stationarity: the ensemble mean at each instant' });
+  A.setSeries(serA); A.draw();
+  // running time averages of every member from the window start
+  const i0 = Math.max(0, Math.round(S.w0 * tc / E.dt));
+  const serB = E.runs.map((r, k) => {
+    const x = [], y = []; let sum = 0, n = 0;
+    for (let i = i0; i < E.t.length; i++) { const v = r[key][i]; if (v === null) continue; sum += v; n++; if (n % 3 === 0) { x.push(T[i]); y.push(sum / n); } }
+    return { x, y, color: PALETTE[k % PALETTE.length], width: 1, label: k === 0 ? 'running time average, one line per run' : undefined };
+  });
+  if (volMean !== null) serB.push({ x: [S.w0, T[T.length - 1]], y: [volMean, volMean], label: 'volume mean', color: '#333', dash: '6 3' });
+  B.setAxes({ xlabel: 't / t_c (end of the averaging interval)', ylabel: `time average of ${label} from ${S.w0.toFixed(1)} t_c`, title: 'Time averages of independent runs converge together' });
+  B.setSeries(serB); B.draw();
+  // final time averages
+  const fin = E.runs.map((r) => { const v = r[key].slice(i0).filter((x) => x !== null); return v.reduce((a, x) => a + x, 0) / v.length; });
+  const fm = fin.reduce((a, x) => a + x, 0) / fin.length;
+  const fsd = Math.sqrt(fin.reduce((a, x) => a + (x - fm) ** 2, 0) / Math.max(1, fin.length - 1));
+  tab.innerHTML = '';
+  const tb = document.createElement('table'); tb.className = 'table table-sm qd-table';
+  const rows = [
+    [`time averages from ${S.w0.toFixed(1)} t_c to the end, per run`, fin.map((x) => fmt(x, 2)).join(', ')],
+    ['their mean ± scatter between runs', `${fmt(fm)} ± ${fmt(fsd)}`],
+    ['volume mean (all runs, finest levels, t ≥ 3 t_c)', volMean === null ? 'not stored for this variable' : fmt(volMean)],
+  ];
+  const body = tb.createTBody(); rows.forEach((r) => { const tr = body.insertRow(); r.forEach((x) => { tr.insertCell().textContent = x; }); });
+  tab.appendChild(tb);
 }
