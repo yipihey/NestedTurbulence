@@ -10,24 +10,29 @@ export const EXPERIMENTS = [
   { value: 'skip', label: 'Covered-region skipping' },
   { value: 'tput', label: 'CPU throughput' },
   { value: 'otref', label: 'Orszag–Tang reference check' },
+  { value: 'ergo', label: 'Ergodicity: driven Mach-10 turbulence' },
 ];
 
 export function makeDefaults() {
   return { exp: 'ot', mode: 'ct', courant: 0.8, field: 'rho', frame: 10, outline: true, log: false,
-           cmap: 'viridis', problem: 'cold-core' };
+           cmap: 'viridis', problem: 'cold-core',
+           evar: 's', w0: 3, wl: 7 };
 }
 
 // [stateKey, hashKey, type, range-or-choices]
 const SCHEMA = [
-  ['exp', 'ex', 'str', ['ot', 'ghost', 'conv', 'adapt', 'skip', 'tput', 'otref']],
+  ['exp', 'ex', 'str', ['ot', 'ghost', 'conv', 'adapt', 'skip', 'tput', 'otref', 'ergo']],
   ['mode', 'm', 'str', ['ct', 'glm']],
   ['courant', 'c', 'num', [0.4, 0.8]],
   ['field', 'f', 'str', ['rho', 'pmag', 'speed']],
-  ['frame', 't', 'int', [0, 10]],
+  ['frame', 't', 'int', [0, 40]],
   ['outline', 'ol', 'bool'],
   ['log', 'lg', 'bool'],
   ['cmap', 'cm', 'str', ['viridis', 'magma', 'inferno', 'gray', 'coolwarm']],
   ['problem', 'pr', 'str', ['orszag-tang', 'cold-core']],
+  ['evar', 'ev', 'str', ['s', 'vx', 'vy', 'B']],
+  ['w0', 'w0', 'num', [0, 10]],
+  ['wl', 'wl', 'num', [0.5, 10]],
 ];
 
 const num = (v) => String(+Number(v).toPrecision(6));

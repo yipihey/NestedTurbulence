@@ -16,7 +16,7 @@ of {{< var build.date >}} (rendered {{< var build.rendered >}}) by the
 - **Superscript ⟨name⟩ marks** link to the line of `core/src` where the function next to an equation
   is defined.
 - **Datasets** behind the widgets and the laboratory are `app/data/*.json`, written by
-  `core/bench/run_experiments.jl`. Each file records when, on which CPU and with how many threads it
+  `core/bench/run_experiments.jl`, `core/bench/run_mach10.jl` and `core/bench/combine_ensemble.jl`. Each file records when, on which CPU and with how many threads it
   was produced. They are committed, not regenerated in CI.
 - **Citations** were checked against NASA ADS; each entry carries its bibcode and DOI.
 
@@ -24,8 +24,11 @@ of {{< var build.date >}} (rendered {{< var build.rendered >}}) by the
 
 - No GPU backend has been compiled or run. The kernels are portable by construction, but GPU
   correctness and performance are untested (@sec-roadmap).
-- The tests and experiments use smooth problems, Orszag–Tang, and a cold-core advection problem.
-  Driven supersonic turbulence (GLMMHDTurb's target regime) has not been run on the nested driver.
+- Driven Mach-10 turbulence has been run only in 2-D (@sec-ergo-run), with $\beta = 200$, on CPUs. It
+  needed a positivity guard on refluxing (@sec-reflux-guard), which gives up exact conservation in
+  the cells where it acts. No 3-D driven run has been made.
+- In those 2-D runs, the mean $v_x$ in the central region is negative in all eight members of the ensemble,
+  and we have not explained it (@sec-ergo-ensemble).
 - Refinement is static. There is no regridding, and only one child per level is supported.
 
 ## Lineage

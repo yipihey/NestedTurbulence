@@ -4,6 +4,7 @@
 import { LinePlot, PALETTE } from './viz/plot.js';
 import { select, slider, checkbox, readout } from './viz/ui.js';
 import { cmapLUT, renderColorbar } from './viz/colormaps.js';
+import { mountErgo } from './ergodic.js';
 
 const cache = new Map();
 export function loadData(name) {
@@ -219,4 +220,4 @@ export async function mountOT(host, S, onChange = () => {}) {
   return { draw };
 }
 
-export const MOUNT = { ot: mountOT, ghost: mountGhost, conv: mountConv, adapt: mountAdapt, skip: mountSkip, tput: mountTput, otref: mountOtref };
+export const MOUNT = { ot: mountOT, ghost: mountGhost, conv: mountConv, adapt: mountAdapt, skip: mountSkip, tput: mountTput, otref: mountOtref, ergo: mountErgo };

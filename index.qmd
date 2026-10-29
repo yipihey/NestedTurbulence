@@ -31,6 +31,7 @@ coarse–fine boundary is filled with **second-order time-interpolated ghost zon
 | Time-interpolated ghost zones converge at 2nd order (1.98–2.00); stale ghosts at 1st (0.86–0.95); at $N=128$ stale ghosts double the child's error | @sec-ghost |
 | The port reproduces GLMMHDTurb's Orszag–Tang $v_\mathrm{rms}$ to four digits (0.7887 / 0.7906) | @sec-otref |
 | Per-level adaptive steps do 2.8× fewer cell updates than fixed ratio-2 subcycling on a cold dense core | @sec-adaptive |
+| In 2-D Mach-10 driven turbulence, the time mean of $\ln\rho$ at one point agrees with the volume mean within 1.4 error bars in all 8 runs; the variance of one run does not converge to the ensemble value in 10 crossing times | @sec-ergo-ensemble |
 
 Everything here was run on a CPU (two threads). The kernels are backend-generic KernelAbstractions
 code, but **no GPU backend has been compiled or run for this report**. @sec-roadmap says what that

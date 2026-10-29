@@ -20,7 +20,7 @@ function mount() {
   const ex = EXPERIMENTS.find((e) => e.value === S.exp);
   const book = { ot: 'chapters/05-orszag-tang.html', ghost: 'chapters/03-validation.html#sec-ghost', conv: 'chapters/03-validation.html#sec-convergence',
                  adapt: 'chapters/04-performance.html#sec-adaptive', skip: 'chapters/04-performance.html#sec-skip',
-                 tput: 'chapters/04-performance.html#sec-throughput', otref: 'chapters/03-validation.html#sec-otref' }[S.exp];
+                 tput: 'chapters/04-performance.html#sec-throughput', otref: 'chapters/03-validation.html#sec-otref', ergo: 'chapters/06-ergodicity.html' }[S.exp];
   cap.innerHTML = `${ex.label} — <a href="../${book}">§ book</a>`;
   host.appendChild(cap);
   const panel = document.createElement('div'); host.appendChild(panel);
