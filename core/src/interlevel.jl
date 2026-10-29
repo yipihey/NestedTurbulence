@@ -205,8 +205,21 @@ end
         sg  = s == 1 ? one(T) : -one(T)
         fi = ntuple(e -> e == d ? fn  : (e == t1 ? clo[t1] + A - 1 : clo[t2] + B - 1), Val(3))
         oi = ntuple(e -> e == d ? out : (e == t1 ? clo[t1] + A - 1 : clo[t2] + B - 1), Val(3))
-        for c in 1:nvr
-            Uc[oi[1], oi[2], oi[3], c] += sg*idx_c*(dtc*Fc[fi[1], fi[2], fi[3], c, d] - FA[s, A, B, c])
+        # Positivity guard (as Enzo's flux correction): the correction is applied only if the corrected
+        # cell keeps a positive density and a positive thermal energy E - ½ρv² - ½B². In a nearly empty
+        # coarse cell next to a dense fine region the momentum correction alone can otherwise create
+        # an enormous velocity and run away. Skipping a correction breaks exact conservation in that
+        # cell only; conservative test problems never trigger it.
+        o1 = oi[1]; o2 = oi[2]; o3 = oi[3]
+        q = ntuple(Val(9)) do c
+            c <= nvr ? Uc[o1,o2,o3,c] + sg*idx_c*(dtc*Fc[fi[1], fi[2], fi[3], c, d] - FA[s, A, B, c]) : zero(T)
+        end
+        ρn = q[1]
+        b2 = nvr == 9 ? q[6]*q[6] + q[7]*q[7] + q[8]*q[8] :
+                        Uc[o1,o2,o3,6]^2 + Uc[o1,o2,o3,7]^2 + Uc[o1,o2,o3,8]^2      # CT: cell B from the faces
+        ok = (ρn > zero(T)) && (q[5] - (q[2]*q[2] + q[3]*q[3] + q[4]*q[4])/(2ρn) - b2/2 > zero(T))
+        if ok
+            for c in 1:nvr; Uc[o1,o2,o3,c] = q[c]; end
         end
     end
 end
